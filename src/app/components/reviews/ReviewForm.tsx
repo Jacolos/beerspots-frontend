@@ -16,31 +16,44 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({ spotId, token, onSuccess
   const [showSuccess, setShowSuccess] = useState(false);
   const [hasExistingReview, setHasExistingReview] = useState(false);
 
-  // Check if user has already reviewed this spot
-  useEffect(() => {
+// Check if user has already reviewed this spot
+useEffect(() => {
     const checkExistingReview = async () => {
       if (!token) return;
-
+  
       try {
         const response = await fetch(`https://piwo.jacolos.pl/api/beer-spots/${spotId}/spot-reviews`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-
+  
         if (!response.ok) return;
         
         const data = await response.json();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const userReviews = data.data.reviews.filter((review: any) => review.user.id === JSON.parse(atob(token.split('.')[1])).sub);
-        setHasExistingReview(userReviews.length > 0);
+  
+        let userId: string | null = null;
+        try {
+          const payload = token.split('.')[1];
+          if (payload) {
+            userId = JSON.parse(atob(payload)).sub || null;
+          }
+        } catch {
+          console.error('Error decoding token');
+        }
+  
+        if (userId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const userReviews = data.data.reviews.filter((review: any) => review.user.id === userId);
+          setHasExistingReview(userReviews.length > 0);
+        }
       } catch (err) {
         console.error('Error checking existing review:', err);
       }
     };
-
+  
     checkExistingReview();
-  }, [spotId, token]);
+  }, [spotId, token]);  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

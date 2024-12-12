@@ -1,3 +1,6 @@
+// src/app/components/map/MapComponent.tsx
+'use client';
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { Map as LeafletMap, LeafletMouseEvent, Marker } from 'leaflet';
 import { Venue } from '../../types';
@@ -197,6 +200,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
       }
 
       try {
+        // @ts-expect-error - Leaflet.Locate plugin is loaded dynamically
         const lc = new L.Control.Locate({
           position: 'bottomright',
           strings: {

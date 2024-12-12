@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BeerMap } from './components/map/BeerMap';
 import { VenueList } from './components/venues/VenueList';
 import { AddVenueForm } from './components/forms/AddVenueForm';
@@ -58,6 +58,9 @@ const ProfileDropdown = ({ isProfileOpen, user, handleLogout, openAuthModal }: {
 };
 
 export default function Home() {
+    // Add state to track client-side rendering
+    const [isClient, setIsClient] = useState(false);
+
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('map');
@@ -68,6 +71,11 @@ export default function Home() {
     const { latitude, longitude, error: geoError, source: geoSource } = useGeolocation();
     const { venues, isLoading, error, setSearchTerm } = useVenues(latitude, longitude);
     const { isAuthenticated, user, logout } = useAuth();
+
+    // Ensure component only renders on client
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
@@ -145,6 +153,11 @@ export default function Home() {
       setAuthModalOpen(false);
       setAuthModalMode('login'); // Reset to default mode
     };
+
+    // Prevent rendering on server
+    if (!isClient) {
+      return null;
+    }
 
     return (
       <div className="min-h-screen bg-gray-50">
