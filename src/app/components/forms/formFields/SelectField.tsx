@@ -32,11 +32,11 @@ export const SelectField: React.FC<SelectFieldProps> = ({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-lg text-gray-900 bg-white placeholder-gray-400"
+        className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-lg text-gray-900 bg-white placeholder-gray-500"
         required={required}
       >
         {options.map(option => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={option.value} className="text-gray-900">
             {option.label}
           </option>
         ))}

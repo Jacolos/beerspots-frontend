@@ -1,12 +1,14 @@
-// src/app/services/api.ts
 import { AddPlaceFormData } from '../types';
+import { getAuthToken } from './auth';
 
 const API_URL = 'https://piwo.jacolos.pl/api';
-const API_TOKEN = '7|X8xytykqdQehV1qrCLnrAhcBJd4NAwcwc1s0psCr7c77d038';
 
-const headers = {
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${API_TOKEN}`
+const getHeaders = () => {
+  const token = getAuthToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
 };
 
 export const fetchNearbyVenues = async (lat: number, lng: number, radius: number) => {
@@ -16,22 +18,16 @@ export const fetchNearbyVenues = async (lat: number, lng: number, radius: number
       longitude: lng.toString(),
       radius: radius.toString()
     });
-
-    console.log('Fetching venues from:', `${API_URL}/beer-spots/nearbywithbeers?${params}`);
     
     const response = await fetch(`${API_URL}/beer-spots/nearbywithbeers?${params}`, {
-      headers: headers
+      headers: getHeaders()
     });
 
     if (!response.ok) {
-      console.error('API response not ok:', response.status, response.statusText);
-      const errorText = await response.text();
-      console.error('Error response:', errorText);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('API response data:', data);
     return data;
   } catch (error) {
     console.error('Error in fetchNearbyVenues:', error);
@@ -40,9 +36,14 @@ export const fetchNearbyVenues = async (lat: number, lng: number, radius: number
 };
 
 export const addBeerSpot = async (data: AddPlaceFormData) => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Musisz być zalogowany, aby dodać lokal');
+  }
+
   const beerSpotResponse = await fetch(`${API_URL}/beer-spots`, {
     method: 'POST',
-    headers,
+    headers: getHeaders(),
     body: JSON.stringify({
       name: data.name,
       address: data.address,
@@ -53,15 +54,20 @@ export const addBeerSpot = async (data: AddPlaceFormData) => {
     })
   });
 
-  if (!beerSpotResponse.ok) throw new Error('Failed to add beer spot');
+  if (!beerSpotResponse.ok) throw new Error('Nie udało się dodać lokalu');
   const beerSpotData = await beerSpotResponse.json();
   return beerSpotData.data.id;
 };
 
 export const addBeerToBeerSpot = async (spotId: number, data: AddPlaceFormData) => {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Musisz być zalogowany, aby dodać piwo');
+  }
+
   const response = await fetch(`${API_URL}/beer-spots/${spotId}/beers`, {
     method: 'POST',
-    headers,
+    headers: getHeaders(),
     body: JSON.stringify({
       name: data.beerName,
       price: Number(data.beerPrice).toFixed(2),
@@ -71,6 +77,6 @@ export const addBeerToBeerSpot = async (spotId: number, data: AddPlaceFormData) 
     })
   });
 
-  if (!response.ok) throw new Error('Failed to add beer');
+  if (!response.ok) throw new Error('Nie udało się dodać piwa');
   return response.json();
 };
