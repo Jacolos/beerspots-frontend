@@ -5,11 +5,13 @@ export interface Venue {
   beer: string;
   price: string;
   rating: number;
+  reviewCount: number; 
   lat: number;
   lng: number;
   address?: string;
   distance: number;
 }
+
 export interface AddPlaceFormData {
   name: string;
   address: string;

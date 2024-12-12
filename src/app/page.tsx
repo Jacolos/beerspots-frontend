@@ -14,6 +14,49 @@ import {
   AlertTriangle, Search, UserCircle, LogOut 
 } from 'lucide-react';
 
+const ProfileDropdown = ({ isProfileOpen, user, handleLogout, openAuthModal }: {
+  isProfileOpen: boolean;
+  user: { name: string; email: string } | null;
+  handleLogout: () => void;
+  openAuthModal: (mode: 'login' | 'register') => void;
+}) => {
+  if (!isProfileOpen) return null;
+
+  return (
+    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
+      {user ? (
+        <>
+          <div className="px-4 py-2 text-sm border-b">
+            <div className="text-gray-900 font-medium">Witaj {user.name}!</div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+          >
+            <LogOut size={16} className="mr-2" />
+            Wyloguj się
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={() => openAuthModal('login')}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Zaloguj się
+          </button>
+          <button
+            onClick={() => openAuthModal('register')}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Zarejestruj się
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
 export default function Home() {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -189,39 +232,12 @@ export default function Home() {
                 </button>
 
                 {/* Profile dropdown */}
-                {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
-                    {isAuthenticated ? (
-                      <>
-                        <div className="px-4 py-2 text-sm text-gray-900 border-b">
-                          {user?.email}
-                        </div>
-                        <button
-                          onClick={handleLogout}
-                          className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          <LogOut size={16} className="mr-2" />
-                          Wyloguj się
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => openAuthModal('login')}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          Zaloguj się
-                        </button>
-                        <button
-                          onClick={() => openAuthModal('register')}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          Zarejestruj się
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
+                <ProfileDropdown 
+                  isProfileOpen={isProfileOpen}
+                  user={user}
+                  handleLogout={handleLogout}
+                  openAuthModal={openAuthModal}
+                />
               </div>
             </div>
           </header>

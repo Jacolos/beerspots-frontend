@@ -9,6 +9,7 @@ interface VenueApiResponse {
   cheapest_beer: string;
   price: number;
   average_rating: number;
+  review_count: number;
   latitude: number;
   longitude: number;
   address: string;
@@ -65,7 +66,8 @@ export const useVenues = (userLat: number, userLng: number) => {
               name: venue.name,
               beer: venue.cheapest_beer || 'Nieznane',
               price: venue.price ? `${Number(venue.price).toFixed(2)} zł` : 'Brak ceny',
-              rating: venue.average_rating || 5.0,
+              rating: venue.average_rating || 0,
+              reviewCount: venue.review_count || 0,
               lat: venue.latitude,
               lng: venue.longitude,
               address: venue.address,
@@ -95,6 +97,7 @@ export const useVenues = (userLat: number, userLng: number) => {
     }
   }, [userLat, userLng]);
 
+  // Filter venues based on search term
   const filteredVenues = venues.filter(venue => {
     const searchLower = searchTerm.toLowerCase();
     return (

@@ -1,19 +1,17 @@
-// src/app/layout.tsx
-'use client';
-import localFont from "next/font/local";
+import { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import Script from "next/script";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
+const inter = Inter({ subsets: ["latin"] });
 
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+export const metadata: Metadata = {
+  title: "BeerSpots - Znajdź najtańsze piwo w okolicy",
+  description: "Aplikacja pokazująca ceny piwa w lokalach w twojej okolicy",
+  icons: {
+    icon: "/favicon.ico",
+  },
+};
 
 export default function RootLayout({
   children,
@@ -21,8 +19,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
+    <html lang="pl">
+      <body className={`${inter.className} antialiased min-h-screen bg-gray-50`}>
+        <Script
+          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          strategy="afterInteractive"
+        />
+        <Script
+          src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js"
+          strategy="afterInteractive"
+        />
         <link
           rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -31,16 +37,6 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.css"
         />
-        <script
-          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          async
-        />
-        <script
-          src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js"
-          async
-        />
-      </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-gray-50`}>
         {children}
       </body>
     </html>
