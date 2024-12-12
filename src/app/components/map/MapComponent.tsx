@@ -1,9 +1,11 @@
+// src/app/components/map/MapComponent.tsx
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { Map as LeafletMap, LeafletMouseEvent, Marker } from 'leaflet';
 import { Venue } from '../../types';
 import { useGeolocation } from '../../hooks/useGeolocation';
+
 
 interface MapComponentProps {
   venues: Venue[];
@@ -83,18 +85,20 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
   const [mapReady, setMapReady] = useState(false);
   const { latitude, longitude, isLoading, error, isDefault } = useGeolocation();
 
-  // Inicjalizacja mapy
+  // Initialize map
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
     const initMap = async () => {
       if (typeof window === 'undefined' || !window.L) return;
 
+      const mapElement = mapRef.current;
+      if (!mapElement) return;
+
       const L = window.L;
-      mapInstance.current = L.map(mapRef.current, {
+      mapInstance.current = L.map(mapElement, {
         zoomControl: true,
         dragging: true,
-        tap: false,
         maxZoom: 19
       }).setView([latitude, longitude], 14);
 
@@ -103,7 +107,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
         maxZoom: 19
       }).addTo(mapInstance.current);
 
-      // Dodaj marker lokalizacji użytkownika
+      // Add user location marker
       if (!isDefault) {
         const userMarker = L.marker([latitude, longitude], {
           icon: createUserLocationMarker()
@@ -114,9 +118,10 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
         userLocationMarkerRef.current = userMarker;
       }
 
-      // Dodaj kontrolkę lokalizacji
-      if (L.control.locate) {
-        L.control.locate({
+      // Add locate control
+      try {
+        // @ts-expect-error - Leaflet.Locate plugin is loaded dynamically
+        const lc = new L.Control.Locate({
           position: 'bottomright',
           strings: {
             title: 'Pokaż moją lokalizację'
@@ -129,17 +134,18 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
             enableHighAccuracy: true,
             maxZoom: 19
           }
-        }).addTo(mapInstance.current);
+        });
+        lc.addTo(mapInstance.current);
+      } catch (e) {
+        console.warn('Locate control is not available:', e);
       }
 
       setMapReady(true);
     };
 
-    // Spróbuj zainicjować mapę od razu jeśli Leaflet jest dostępny
     if (typeof window !== 'undefined' && window.L) {
       initMap();
     } else {
-      // Czekaj na załadowanie Leaflet
       const leafletCheck = setInterval(() => {
         if (typeof window !== 'undefined' && window.L) {
           clearInterval(leafletCheck);
@@ -159,15 +165,15 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
     };
   }, [latitude, longitude, isDefault]);
 
-  // Obsługa markerów lokali
+  // Handle venue markers
   useEffect(() => {
     if (!mapInstance.current || !mapReady) return;
 
-    // Wyczyść istniejące markery
+    // Clear existing markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // Dodaj markery lokali (zawsze, niezależnie od trybu)
+    // Add venue markers (always, regardless of mode)
     venues.forEach(venue => {
       if (!venue.lat || !venue.lng) return;
 
@@ -188,19 +194,19 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
     });
   }, [venues, mapReady]);
 
-  // Obsługa kliknięć na mapie
+  // Handle map clicks
   useEffect(() => {
     if (!mapInstance.current || !mapReady) return;
 
     const handleClick = (e: LeafletMouseEvent) => {
       if (!isAddMode || !onMapClick) return;
 
-      // Wyczyść poprzedni tymczasowy marker
+      // Clear previous temporary marker
       if (tempMarkerRef.current) {
         tempMarkerRef.current.remove();
       }
 
-      // Dodaj nowy marker
+      // Add new marker
       const L = window.L;
       tempMarkerRef.current = L.marker(e.latlng, {
         icon: createPriceMarker('Nowa', true)
@@ -221,11 +227,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
     };
   }, [isAddMode, onMapClick, mapReady]);
 
-  // Aktualizacja widoku mapy przy zmianie lokalizacji
+  // Update map view when location changes
   useEffect(() => {
     if (!mapInstance.current || !mapReady || isDefault) return;
 
-    // Aktualizuj pozycję markera użytkownika
+    // Update user location marker position
     if (userLocationMarkerRef.current) {
       userLocationMarkerRef.current.setLatLng([latitude, longitude]);
     }

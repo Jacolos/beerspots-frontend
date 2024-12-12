@@ -1,4 +1,3 @@
-// src/app/hooks/useGeolocation.ts
 import { useState, useEffect } from 'react';
 
 interface GeolocationState {
@@ -25,10 +24,10 @@ const getStoredLocation = () => {
     if (parsed.latitude && parsed.longitude) {
       return parsed;
     }
-  } catch (e) {
+    return null;
+  } catch {
     return null;
   }
-  return null;
 };
 
 export const useGeolocation = () => {
@@ -56,7 +55,7 @@ export const useGeolocation = () => {
           latitude: data.latitude,
           longitude: data.longitude
         };
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('IP location error:', error);
         try {
           const backupResponse = await fetch('https://ip-api.com/json/?fields=lat,lon,status');
@@ -97,14 +96,14 @@ export const useGeolocation = () => {
           {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 300000 // Zwiększamy maximumAge do 5 minut
+            maximumAge: 300000
           }
         );
       });
     };
 
     const initLocation = async () => {
-      if (!state.isDefault) return; // Nie aktualizuj jeśli mamy już lokalizację
+      if (!state.isDefault) return;
 
       try {
         const gpsPosition = await getGPSLocation();
@@ -126,6 +125,7 @@ export const useGeolocation = () => {
           });
         }
       } catch (gpsError) {
+        console.error('GPS error:', gpsError);
         try {
           const ipLocation = await getIpBasedLocation();
           
@@ -134,17 +134,17 @@ export const useGeolocation = () => {
             
             setState({
               ...ipLocation,
-              error: null,
+              error: gpsError instanceof Error ? gpsError.message : 'GPS niedostępny',
               isLoading: false,
               isDefault: false,
               source: 'ip'
             });
           }
-        } catch (ipError) {
+        } catch {
           if (mounted) {
             setState(prev => ({
               ...prev,
-              error: 'Nie udało się ustalić lokalizacji',
+              error: 'Nie udało się ustalić lokalizacji GPS ani IP',
               isLoading: false
             }));
           }

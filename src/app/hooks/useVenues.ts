@@ -14,10 +14,6 @@ interface VenueApiResponse {
   address: string;
 }
 
-interface VenueWithDistance extends Venue {
-  distance: number;
-}
-
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371; // Promień Ziemi w kilometrach
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -31,7 +27,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 export const useVenues = (userLat: number, userLng: number) => {
-  const [venues, setVenues] = useState<VenueWithDistance[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,6 +37,7 @@ export const useVenues = (userLat: number, userLng: number) => {
       try {
         console.log('Loading venues for location:', { userLat, userLng });
         setIsLoading(true);
+        setError(null);
         
         const result = await fetchNearbyVenues(userLat, userLng, 40);
         console.log('API response:', result);
@@ -50,7 +47,7 @@ export const useVenues = (userLat: number, userLng: number) => {
         }
 
         const transformedVenues = result.data
-          .map((venue: VenueApiResponse): VenueWithDistance | null => {
+          .map((venue: VenueApiResponse): Venue | null => {
             if (!venue.latitude || !venue.longitude) {
               console.warn('Venue missing coordinates:', venue);
               return null;
@@ -75,12 +72,11 @@ export const useVenues = (userLat: number, userLng: number) => {
               distance: distance
             };
           })
-          .filter((venue): venue is VenueWithDistance => venue !== null)
-          .sort((a, b) => a.distance - b.distance);
+          .filter((venue: Venue | null): venue is Venue => venue !== null)
+          .sort((a: Venue, b: Venue) => a.distance - b.distance);
 
-        console.log('Transformed and sorted venues:', transformedVenues);
+        console.log('Transformed venues:', transformedVenues);
         setVenues(transformedVenues);
-        setError(null);
       } catch (err) {
         console.error('Error loading venues:', err);
         if (err instanceof Error) {
@@ -99,11 +95,20 @@ export const useVenues = (userLat: number, userLng: number) => {
     }
   }, [userLat, userLng]);
 
-  const filteredVenues = venues.filter(venue =>
-    venue.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    venue.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    venue.beer.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredVenues = venues.filter(venue => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      venue.name.toLowerCase().includes(searchLower) ||
+      venue.address?.toLowerCase().includes(searchLower) ||
+      venue.beer.toLowerCase().includes(searchLower) ||
+      venue.price.toLowerCase().includes(searchLower)
+    );
+  });
 
-  return { venues: filteredVenues, isLoading, error, searchTerm, setSearchTerm };
+  return {
+    venues: filteredVenues,
+    isLoading,
+    error,
+    setSearchTerm
+  };
 };

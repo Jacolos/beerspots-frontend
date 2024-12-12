@@ -8,8 +8,8 @@ export interface Venue {
   lat: number;
   lng: number;
   address?: string;
+  distance: number;
 }
-
 export interface AddPlaceFormData {
   name: string;
   address: string;

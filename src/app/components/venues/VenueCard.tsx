@@ -2,20 +2,9 @@
 'use client';
 import React from 'react';
 import { MapPin, Beer, Star } from 'lucide-react';
+import { Venue } from '../../types';
 
-interface VenueWithDistance {
-  id: number;
-  name: string;
-  beer: string;
-  price: string;
-  rating: number;
-  lat: number;
-  lng: number;
-  address?: string;
-  distance: number;
-}
-
-export const VenueCard: React.FC<{ venue: VenueWithDistance }> = ({ venue }) => {
+export const VenueCard: React.FC<{ venue: Venue }> = ({ venue }) => {
   const formatDistance = (distance: number) => {
     if (distance < 1) {
       return `${(distance * 1000).toFixed(0)}m`;
