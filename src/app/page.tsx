@@ -5,6 +5,7 @@ import { BeerMap } from './components/map/BeerMap';
 import { VenueList } from './components/venues/VenueList';
 import { AddVenueForm } from './components/forms/AddVenueForm';
 import { useVenues } from './hooks/useVenues';
+import { useGeolocation } from './hooks/useGeolocation';
 import { DEFAULT_OPENING_HOURS } from './utils/constants';
 import { AddPlaceFormData } from './types';
 import { 
@@ -13,11 +14,13 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [isProfileOpen, setProfileOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('map');
-  const [localSearchTerm, setLocalSearchTerm] = useState('');
-  const { venues, isLoading, error, setSearchTerm } = useVenues();
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+    const [isProfileOpen, setProfileOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState('map');
+    const [localSearchTerm, setLocalSearchTerm] = useState('');
+    
+    const { latitude, longitude, error: geoError, source: geoSource } = useGeolocation();
+    const { venues, isLoading, error, setSearchTerm } = useVenues(latitude, longitude);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -184,7 +187,7 @@ export default function Home() {
               <VenueList
                 venues={venues}
                 isLoading={isLoading}
-                error={error}
+                error={error || (geoError && geoSource === 'default' ? 'Nie można załadować lokali - problem z lokalizacją' : null)}
               />
             </div>
           )}

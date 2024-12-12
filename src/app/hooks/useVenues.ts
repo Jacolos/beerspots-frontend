@@ -1,5 +1,4 @@
 // src/app/hooks/useVenues.ts
-'use client';
 import { useState, useEffect } from 'react';
 import { Venue } from '../types';
 import { fetchNearbyVenues } from '../services/api';
@@ -15,8 +14,24 @@ interface VenueApiResponse {
   address: string;
 }
 
-export const useVenues = () => {
-  const [venues, setVenues] = useState<Venue[]>([]);
+interface VenueWithDistance extends Venue {
+  distance: number;
+}
+
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Promień Ziemi w kilometrach
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Odległość w kilometrach
+};
+
+export const useVenues = (userLat: number, userLng: number) => {
+  const [venues, setVenues] = useState<VenueWithDistance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,35 +39,65 @@ export const useVenues = () => {
   useEffect(() => {
     const loadVenues = async () => {
       try {
-        const result = await fetchNearbyVenues(52.2, 21, 40);
+        console.log('Loading venues for location:', { userLat, userLng });
+        setIsLoading(true);
         
-        const transformedVenues = result.data
-          .map((venue: VenueApiResponse) => ({
-            id: venue.id,
-            name: venue.name,
-            beer: venue.cheapest_beer || 'Nieznane',
-            price: venue.price ? `${Number(venue.price).toFixed(2)} zł` : 'Brak ceny',
-            rating: venue.average_rating || 5.0,
-            lat: venue.latitude,
-            lng: venue.longitude,
-            address: venue.address
-          }))
-          .filter((venue: Venue) => venue.lat && venue.lng);
+        const result = await fetchNearbyVenues(userLat, userLng, 40);
+        console.log('API response:', result);
 
+        if (!result || !result.data) {
+          throw new Error('Brak danych z API');
+        }
+
+        const transformedVenues = result.data
+          .map((venue: VenueApiResponse): VenueWithDistance | null => {
+            if (!venue.latitude || !venue.longitude) {
+              console.warn('Venue missing coordinates:', venue);
+              return null;
+            }
+
+            const distance = calculateDistance(
+              userLat,
+              userLng,
+              venue.latitude,
+              venue.longitude
+            );
+
+            return {
+              id: venue.id,
+              name: venue.name,
+              beer: venue.cheapest_beer || 'Nieznane',
+              price: venue.price ? `${Number(venue.price).toFixed(2)} zł` : 'Brak ceny',
+              rating: venue.average_rating || 5.0,
+              lat: venue.latitude,
+              lng: venue.longitude,
+              address: venue.address,
+              distance: distance
+            };
+          })
+          .filter((venue): venue is VenueWithDistance => venue !== null)
+          .sort((a, b) => a.distance - b.distance);
+
+        console.log('Transformed and sorted venues:', transformedVenues);
         setVenues(transformedVenues);
-      } catch (err: unknown) {
+        setError(null);
+      } catch (err) {
+        console.error('Error loading venues:', err);
         if (err instanceof Error) {
           setError(err.message);
         } else {
-          setError('Wystąpił nieznany błąd');
+          setError('Wystąpił nieznany błąd podczas ładowania lokali');
         }
+        setVenues([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadVenues();
-  }, []);
+    if (userLat && userLng) {
+      loadVenues();
+    }
+  }, [userLat, userLng]);
 
   const filteredVenues = venues.filter(venue =>
     venue.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

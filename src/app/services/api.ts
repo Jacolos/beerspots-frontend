@@ -10,15 +10,33 @@ const headers = {
 };
 
 export const fetchNearbyVenues = async (lat: number, lng: number, radius: number) => {
-  const params = new URLSearchParams({
-    latitude: lat.toString(),
-    longitude: lng.toString(),
-    radius: radius.toString()
-  });
+  try {
+    const params = new URLSearchParams({
+      latitude: lat.toString(),
+      longitude: lng.toString(),
+      radius: radius.toString()
+    });
 
-  const response = await fetch(`${API_URL}/beer-spots/nearbywithbeers?${params}`);
-  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-  return response.json();
+    console.log('Fetching venues from:', `${API_URL}/beer-spots/nearbywithbeers?${params}`);
+    
+    const response = await fetch(`${API_URL}/beer-spots/nearbywithbeers?${params}`, {
+      headers: headers
+    });
+
+    if (!response.ok) {
+      console.error('API response not ok:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('API response data:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in fetchNearbyVenues:', error);
+    throw error;
+  }
 };
 
 export const addBeerSpot = async (data: AddPlaceFormData) => {

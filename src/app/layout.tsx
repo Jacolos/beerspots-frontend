@@ -1,10 +1,7 @@
 // src/app/layout.tsx
 'use client';
-import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { useState } from 'react';
-import { Menu, X, Map, ListOrdered, PlusCircle, AlertTriangle, Search } from 'lucide-react';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -30,12 +27,22 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.css"
+        />
         <script
           src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           async
         />
+        <script
+          src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js"
+          async
+        />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-gray-50`}>{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-gray-50`}>
+        {children}
+      </body>
     </html>
   );
 }

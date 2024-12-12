@@ -2,8 +2,7 @@
 'use client';
 import { useState } from 'react';
 import { Menu, X, UserCircle, Bell } from 'lucide-react';
-import { Navigation } from '../layout/Navigation';
-import { Header } from '../layout/Header';
+
 
 interface ClientLayoutProps {
   children: React.ReactNode;
