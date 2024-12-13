@@ -34,8 +34,8 @@ yarn-error.log*
 .env*
 
 # haslo do apk
-haslo.txt
-beerspots-release-key.keystore
+haslo.txt*
+beerspots-release-key.keystore*
 
 # vercel
 .vercel
