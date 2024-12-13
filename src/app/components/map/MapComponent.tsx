@@ -1,6 +1,3 @@
-// src/app/components/map/MapComponent.tsx
-'use client';
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { Map as LeafletMap, LeafletMouseEvent, Marker } from 'leaflet';
 import { Venue } from '../../types';
@@ -9,6 +6,18 @@ import { useAuth } from '../../hooks/useAuth';
 import { Dialog } from '@headlessui/react';
 import { X, Star } from 'lucide-react';
 import { ReviewForm } from '../reviews/ReviewForm';
+import { debounce } from 'lodash';
+
+interface MapComponentProps {
+  venues: Venue[];
+  onMapClick?: (e: LeafletMouseEvent) => void;
+  isAddMode?: boolean;
+  onBoundsChanged?: (center: { 
+    latitude: number; 
+    longitude: number; 
+    zoom: number 
+  }) => void;
+}
 
 interface ApiReview {
   id: number;
@@ -30,12 +39,6 @@ interface ApiResponse {
     total_reviews: number;
     reviews: ApiReview[];
   };
-}
-
-interface MapComponentProps {
-  venues: Venue[];
-  onMapClick?: (e: LeafletMouseEvent) => void;
-  isAddMode?: boolean;
 }
 
 const createPriceMarker = (price: string, isTemp = false) => {
@@ -108,12 +111,19 @@ const getReviewsCount = (count: number) => {
   return `${count} opinii`;
 };
 
-const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMode }) => {
+const MapComponent: React.FC<MapComponentProps> = ({
+  venues,
+  onMapClick,
+  isAddMode,
+  onBoundsChanged
+}) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<LeafletMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const tempMarkerRef = useRef<Marker | null>(null);
   const userLocationMarkerRef = useRef<Marker | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerClusterGroupRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const { latitude, longitude, isLoading, error, isDefault } = useGeolocation();
   const { token } = useAuth();
@@ -124,6 +134,21 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
   const [reviews, setReviews] = useState<ApiReview[]>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
+
+  const debouncedHandleMapMove = useCallback(
+    debounce(() => {
+      if (!mapInstance.current || !onBoundsChanged) return;
+      const center = mapInstance.current.getCenter();
+      const zoom = mapInstance.current.getZoom();
+      
+      onBoundsChanged({
+        latitude: center.lat,
+        longitude: center.lng,
+        zoom: zoom
+      });
+    }, 300),
+    [onBoundsChanged]
+  );
 
   const fetchReviews = async (venueId: number) => {
     setIsLoadingReviews(true);
@@ -184,10 +209,52 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
         maxZoom: 19
       }).setView([latitude, longitude], 14);
 
+      // Add tile layer
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
       }).addTo(mapInstance.current);
+
+      // Initialize marker cluster group
+      // @typescript-eslint/ban-ts-comment
+      markerClusterGroupRef.current = L.markerClusterGroup({
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: true,
+        zoomToBoundsOnClick: true,
+        disableClusteringAtZoom: 16,
+        chunkedLoading: true,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          iconCreateFunction: function(cluster: any) {
+          const count = cluster.getChildCount();
+          let size = 'small';
+          let additional = '';
+
+          if (count > 50) {
+            size = 'large';
+            additional = 'bg-red-500';
+          } else if (count > 10) {
+            size = 'medium';
+            additional = 'bg-amber-500';
+          } else {
+            additional = 'bg-amber-400';
+          }
+
+          return L.divIcon({
+            html: `<div class="cluster-marker ${additional} text-white font-bold rounded-full flex items-center justify-center" style="width: 40px; height: 40px;">
+              ${count}
+            </div>`,
+            className: `marker-cluster marker-cluster-${size}`,
+            iconSize: L.point(40, 40)
+          });
+        }
+      });
+
+      mapInstance.current.addLayer(markerClusterGroupRef.current);
+
+      // Add event listeners
+      mapInstance.current.on('moveend', debouncedHandleMapMove);
+      mapInstance.current.on('zoomend', debouncedHandleMapMove);
 
       if (!isDefault) {
         const userMarker = L.marker([latitude, longitude], {
@@ -199,6 +266,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
         userLocationMarkerRef.current = userMarker;
       }
 
+      // Add locate control
       try {
         // @ts-expect-error - Leaflet.Locate plugin is loaded dynamically
         const lc = new L.Control.Locate({
@@ -221,6 +289,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
       }
 
       setMapReady(true);
+      debouncedHandleMapMove();
     };
 
     if (typeof window !== 'undefined' && window.L) {
@@ -238,20 +307,24 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
 
     return () => {
       if (mapInstance.current) {
+        mapInstance.current.off('moveend', debouncedHandleMapMove);
+        mapInstance.current.off('zoomend', debouncedHandleMapMove);
         mapInstance.current.remove();
         mapInstance.current = null;
         setMapReady(false);
       }
     };
-  }, [latitude, longitude, isDefault]);
+  }, [latitude, longitude, isDefault, debouncedHandleMapMove]);
 
   // Handle venue markers
   useEffect(() => {
-    if (!mapInstance.current || !mapReady) return;
+    if (!mapInstance.current || !mapReady || !markerClusterGroupRef.current) return;
 
-    markersRef.current.forEach(marker => marker.remove());
+    // Clear existing markers
+    markerClusterGroupRef.current.clearLayers();
     markersRef.current = [];
 
+    // Add new markers
     venues.forEach(venue => {
       if (!venue.lat || !venue.lng) return;
 
@@ -282,8 +355,7 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
               ${venue.address || 'Brak adresu'}
             </p>
           </div>
-        `)
-        .addTo(mapInstance.current!);
+        `);
 
       marker.on('popupopen', () => {
         const popup = marker.getPopup();
@@ -303,10 +375,11 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
       });
 
       markersRef.current.push(marker);
+      markerClusterGroupRef.current.addLayer(marker);
     });
   }, [venues, mapReady, handleReviewsClick]);
 
-  // Handle map clicks
+  // Handle map clicks for adding new venues
   useEffect(() => {
     if (!mapInstance.current || !mapReady) return;
 
@@ -373,11 +446,10 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
         </div>
       )}
 
-      {/* Reviews Modal */}
       {selectedVenue && (
         <Dialog 
           open={isReviewsModalOpen} 
-          onClose={() => setReviewsModalOpen(false)} 
+          onClose={() => setReviewsModalOpen(false)}
           className="relative z-[500]"
         >
           <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
@@ -406,59 +478,58 @@ const MapComponent: React.FC<MapComponentProps> = ({ venues, onMapClick, isAddMo
               <div className="flex-1 overflow-y-auto p-6">
                 {isLoadingReviews ? (
                   <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-amber-500 border-t-transparent"></div>
-                </div>
-              ) : reviewsError ? (
-                <div className="text-center text-red-600 p-4">
-                  {reviewsError}
-                </div>
-              ) : (
-                <>
-                  {reviews.length === 0 ? (
-                    <div className="text-center text-gray-500 p-4 mb-6">
-                      Brak opinii dla tego miejsca
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {reviews.map((review) => (
-                        <div key={review.id} className="border-b border-gray-100 pb-6 last:border-0">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex items-center">
-                              <div className="bg-amber-50 px-3 py-1 rounded-full flex items-center">
-                                <Star className="w-4 h-4 text-amber-400 mr-1" />
-                                <span className="font-bold text-amber-700">{review.rating.toFixed(1)}</span>
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-amber-500 border-t-transparent"></div>
+                  </div>
+                ) : reviewsError ? (
+                  <div className="text-center text-red-600 p-4">
+                    {reviewsError}
+                  </div>
+                ) : (
+                  <>
+                    {reviews.length === 0 ? (
+                      <div className="text-center text-gray-500 p-4 mb-6">
+                        Brak opinii dla tego miejsca
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {reviews.map((review) => (
+                          <div key={review.id} className="border-b border-gray-100 pb-6 last:border-0">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center">
+                                <div className="bg-amber-50 px-3 py-1 rounded-full flex items-center">
+                                  <Star className="w-4 h-4 text-amber-400 mr-1" />
+                                  <span className="font-bold text-amber-700">{review.rating.toFixed(1)}</span>
+                                </div>
                               </div>
+                              <span className="text-sm text-gray-500">
+                                {formatDate(review.visit_date)}
+                              </span>
                             </div>
-                            <span className="text-sm text-gray-500">
-                              {formatDate(review.visit_date)}
-                            </span>
+                            <p className="text-gray-700 mb-2">{review.comment}</p>
+                            <p className="text-sm text-gray-500">
+                              {review.user.name}
+                            </p>
                           </div>
-                          <p className="text-gray-700 mb-2">{review.comment}</p>
-                          <p className="text-sm text-gray-500">
-                            {review.user.name}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Add Review Form */}
-                  <ReviewForm 
-                    spotId={selectedVenue.id}
-                    token={token}
-                    onSuccess={() => {
-                      fetchReviews(selectedVenue.id);
-                    }}
-                  />
-                </>
-              )}
-            </div>
-          </Dialog.Panel>
-        </div>
-      </Dialog>
-    )}
-  </div>
-);
+                        ))}
+                      </div>
+                    )}
+                    
+                    <ReviewForm 
+                      spotId={selectedVenue.id}
+                      token={token}
+                      onSuccess={() => {
+                        fetchReviews(selectedVenue.id);
+                      }}
+                    />
+                  </>
+                )}
+              </div>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
+      )}
+    </div>
+  );
 };
 
 export default MapComponent;

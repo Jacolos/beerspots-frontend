@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Beer Spots</string>
+    <string name="title_activity_main">Beer Spots</string>
+    <string name="package_name">pl.beerstops.app</string>
+    <string name="custom_url_scheme">pl.beerstops.app</string>
+</resources>

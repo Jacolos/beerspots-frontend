@@ -1,5 +1,3 @@
-// src/app/components/venues/VenueList.tsx
-'use client';
 import React from 'react';
 import { VenueCard } from './VenueCard';
 import { Venue } from '../../types';
@@ -27,11 +25,18 @@ export const VenueList: React.FC<VenueListProps> = ({ venues, isLoading, error }
     );
   }
 
+  const nearestVenues = venues.slice(0, 40);
+
   return (
-    <div className="space-y-4">
-      {venues.map(venue => (
-        <VenueCard key={venue.id} venue={venue} />
-      ))}
+    <div>
+      <div className="mb-4 text-gray-600">
+        Pokazuje {nearestVenues.length} najbliższych lokali
+      </div>
+      <div className="space-y-4">
+        {nearestVenues.map(venue => (
+          <VenueCard key={venue.id} venue={venue} />
+        ))}
+      </div>
     </div>
   );
 };

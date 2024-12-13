@@ -13,8 +13,13 @@ const MapComponent = dynamic(() => import('./MapComponent'), {
 
 interface BeerMapProps {
   venues: Venue[];
-  onMapClick?: (e: LeafletMouseEvent) => void;
-  isAddMode?: boolean;
+  onMapClick: (e: LeafletMouseEvent) => void;
+  isAddMode: boolean;
+  onBoundsChanged: (center: {
+    latitude: number;
+    longitude: number;
+    zoom: number;
+  }) => void;
 }
 
 export const BeerMap: React.FC<BeerMapProps> = (props) => {
