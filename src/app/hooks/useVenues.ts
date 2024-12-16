@@ -19,9 +19,23 @@ interface VenueApiResponse {
   distance: number;
 }
 
+interface GridCell {
+  lat: number;
+  lng: number;
+  zoom: number;
+}
+
+interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 interface CacheEntry {
   timestamp: number;
   venues: Venue[];
+  bounds: MapBounds;
 }
 
 interface MapCenter {
@@ -30,7 +44,12 @@ interface MapCenter {
   zoom: number;
 }
 
+// Stałe konfiguracyjne
 const CACHE_LIFETIME = 5 * 60 * 1000; // 5 minut
+const GRID_SIZE = 0.1; // Wielkość komórki siatki w stopniach
+const MIN_ZOOM_CHANGE = 2; // Minimalna zmiana zoomu wymuszająca odświeżenie
+const DEBOUNCE_DELAY = 300; // Opóźnienie debounce w ms
+const MAX_VENUES_LIST = 40; // Maksymalna liczba lokali na liście
 
 export const useVenues = (initialLat: number, initialLng: number) => {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -42,41 +61,76 @@ export const useVenues = (initialLat: number, initialLng: number) => {
     longitude: initialLng,
     zoom: 13
   });
+
   const cachedAreas = useRef<Map<string, CacheEntry>>(new Map());
   const loadingRef = useRef<boolean>(false);
+  const lastFetch = useRef<GridCell | null>(null);
+  const debounceTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  const generateCacheKey = (lat: number, lng: number, zoom: number): string => {
-    return `${lat.toFixed(3)},${lng.toFixed(3)},${zoom}`;
+  // Zaokrąglanie do siatki
+  const roundToGrid = (value: number): number => {
+    return Math.round(value / GRID_SIZE) * GRID_SIZE;
   };
 
+  // Generowanie klucza cache
+  const generateCacheKey = (cell: GridCell): string => {
+    return `${cell.lat.toFixed(3)},${cell.lng.toFixed(3)},${cell.zoom}`;
+  };
+
+  // Sprawdzanie czy należy pobrać nowe dane
+  const shouldFetchNewData = (newCell: GridCell): boolean => {
+    if (!lastFetch.current) return true;
+
+    const zoomChanged = Math.abs(lastFetch.current.zoom - newCell.zoom) >= MIN_ZOOM_CHANGE;
+    const positionChanged = 
+      Math.abs(lastFetch.current.lat - newCell.lat) >= GRID_SIZE ||
+      Math.abs(lastFetch.current.lng - newCell.lng) >= GRID_SIZE;
+
+    return zoomChanged || positionChanged;
+  };
+
+  // Czyszczenie starego cache
   const clearOldCache = useCallback(() => {
     const now = Date.now();
-    for (const [key, entry] of cachedAreas.current.entries()) {
+    const expiredKeys: string[] = [];
+
+    cachedAreas.current.forEach((entry, key) => {
       if (now - entry.timestamp > CACHE_LIFETIME) {
-        cachedAreas.current.delete(key);
+        expiredKeys.push(key);
       }
-    }
+    });
+
+    expiredKeys.forEach(key => cachedAreas.current.delete(key));
   }, []);
 
+  // Główna funkcja pobierająca dane
   const loadVenuesForLocation = useCallback(async (center: MapCenter) => {
-    if (loadingRef.current) return; // Zabezpieczenie przed równoległymi zapytaniami
-    
-    const cacheKey = generateCacheKey(center.latitude, center.longitude, center.zoom);
+    if (loadingRef.current) return;
+
+    const cell: GridCell = {
+      lat: roundToGrid(center.latitude),
+      lng: roundToGrid(center.longitude),
+      zoom: Math.round(center.zoom)
+    };
+
+    // Sprawdź czy potrzebujemy nowych danych
+    if (!shouldFetchNewData(cell)) return;
+
+    const cacheKey = generateCacheKey(cell);
     clearOldCache();
 
     // Sprawdź cache
     const cachedEntry = cachedAreas.current.get(cacheKey);
     if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_LIFETIME) {
       setVenues(cachedEntry.venues);
+      setIsLoading(false);
       return;
     }
 
     loadingRef.current = true;
     setIsLoading(true);
-    
+
     try {
-      //console.log('Loading venues for:', center);
-      
       const result = await fetchNearbyVenues({
         latitude: center.latitude,
         longitude: center.longitude,
@@ -97,17 +151,22 @@ export const useVenues = (initialLat: number, initialLng: number) => {
         lat: venue.latitude,
         lng: venue.longitude,
         address: venue.address,
-        distance: venue.distance,
-       // openStatus: venue.open,
-       // verified: venue.verified
+        distance: venue.distance
       }));
 
-      // Update cache
+      // Zapisz w cache
       cachedAreas.current.set(cacheKey, {
         timestamp: Date.now(),
-        venues: newVenues
+        venues: newVenues,
+        bounds: {
+          north: center.latitude + GRID_SIZE,
+          south: center.latitude - GRID_SIZE,
+          east: center.longitude + GRID_SIZE,
+          west: center.longitude - GRID_SIZE
+        }
       });
 
+      lastFetch.current = cell;
       setVenues(newVenues);
       setError(null);
     } catch (err) {
@@ -129,12 +188,28 @@ export const useVenues = (initialLat: number, initialLng: number) => {
     });
   }, [initialLat, initialLng, loadVenuesForLocation]);
 
-  // Obsługa zmiany centrum mapy
+  // Obsługa zmiany centrum mapy z debounce
   const handleMapChange = useCallback((newCenter: MapCenter) => {
-    setMapCenter(newCenter);
-    loadVenuesForLocation(newCenter);
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+
+    debounceTimeout.current = setTimeout(() => {
+      setMapCenter(newCenter);
+      loadVenuesForLocation(newCenter);
+    }, DEBOUNCE_DELAY);
   }, [loadVenuesForLocation]);
 
+  // Czyszczenie timeoutów
+  useEffect(() => {
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, []);
+
+  // Filtrowanie lokali
   const filteredVenues = venues.filter(venue => {
     if (!searchTerm) return true;
     
@@ -147,11 +222,11 @@ export const useVenues = (initialLat: number, initialLng: number) => {
     );
   });
 
-  // Dla widoku listy zwracamy tylko 40 najbliższych
+  // Pobieranie lokali do widoku listy
   const getListVenues = useCallback(() => {
     return [...filteredVenues]
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 40);
+      .slice(0, MAX_VENUES_LIST);
   }, [filteredVenues]);
 
   return {

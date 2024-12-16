@@ -5,14 +5,16 @@ import { BeerMap } from './components/map/BeerMap';
 import { VenueList } from './components/venues/VenueList';
 import { AddVenueForm } from './components/forms/AddVenueForm';
 import { useVenues } from './hooks/useVenues';
+import { useNearbyVenues } from './hooks/useNearbyVenues';
 import { useGeolocation } from './hooks/useGeolocation';
 import { DEFAULT_OPENING_HOURS } from './utils/constants';
 import { AddPlaceFormData } from './types';
 import { AuthModal } from './components/auth/AuthModal';
 import { useAuth } from './hooks/useAuth';
+import FavoritesList from './components/favorites/FavoritesList';
+import { useFavoritesStore } from './stores/useFavoritesStore';
 import { 
-  Menu, X, Map, ListOrdered, PlusCircle, 
-  AlertTriangle, Search, UserCircle, LogOut 
+  Menu, X, Map, ListOrdered, PlusCircle, Search, UserCircle, Heart, LogOut 
 } from 'lucide-react';
 
 const ProfileDropdown = ({ isProfileOpen, user, handleLogout, openAuthModal }: {
@@ -68,17 +70,41 @@ export default function Home() {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
   const { latitude, longitude, error: geoError, source: geoSource } = useGeolocation();
-  const { venues, isLoading, error, setSearchTerm, handleMapChange } = useVenues(latitude, longitude);
+  
+  // Hook do mapy
+  const { 
+    venues: mapVenues, 
+    setSearchTerm: setMapSearchTerm, 
+    handleMapChange 
+  } = useVenues(latitude, longitude);
+
+  // Hook do listy lokali
+  const {
+    venues: listVenues,
+    isLoading: isListLoading,
+    error: listError,
+    searchVenues
+  } = useNearbyVenues(latitude, longitude);
+
   const { isAuthenticated, user, logout } = useAuth();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  // W page.tsx, na początku komponentu Home:
+useEffect(() => {
+  if (isAuthenticated) {
+    // Inicjujemy pobieranie ulubionych w tle
+    useFavoritesStore.getState().fetchFavorites();
+  }
+}, [isAuthenticated]);
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setLocalSearchTerm(value);
-    setSearchTerm(value);
+    setMapSearchTerm(value);
+    searchVenues(value);
   };
 
   const navItems = [
@@ -86,7 +112,7 @@ export default function Home() {
     { id: 'list', label: 'Lista lokali', icon: <ListOrdered size={20} /> },
     ...(isAuthenticated ? [
       { id: 'add', label: 'Dodaj lokal', icon: <PlusCircle size={20} /> },
-      { id: 'report', label: 'Zgłoś problem', icon: <AlertTriangle size={20} /> }
+      { id: 'favorites', label: 'Ulubione', icon: <Heart size={20} /> }
     ] : [])
   ];
 
@@ -256,20 +282,20 @@ export default function Home() {
           {activeTab === 'map' && (
             <div className="h-[calc(100vh-3rem)]">
               <BeerMap
-  venues={venues}
-  onMapClick={handleMapClick}
-  isAddMode={false}
-  onBoundsChanged={handleMapMoveEnd}
-/>
+                venues={mapVenues}
+                onMapClick={handleMapClick}
+                isAddMode={false}
+                onBoundsChanged={handleMapMoveEnd}
+              />
             </div>
           )}
           
           {activeTab === 'list' && (
             <div className="p-4">
               <VenueList
-                venues={venues}
-                isLoading={isLoading}
-                error={error || (geoError && geoSource === 'default' ? 'Nie można załadować lokali - problem z lokalizacją' : null)}
+                venues={listVenues}
+                isLoading={isListLoading}
+                error={listError || (geoError && geoSource === 'default' ? 'Nie można załadować lokali - problem z lokalizacją' : null)}
               />
             </div>
           )}
@@ -278,7 +304,7 @@ export default function Home() {
             <div>
               <div className="h-[50vh]">
                 <BeerMap
-                  venues={venues}
+                  venues={mapVenues}
                   onMapClick={handleMapClick}
                   isAddMode={true}
                   onBoundsChanged={handleMapMoveEnd}
@@ -294,31 +320,12 @@ export default function Home() {
             </div>
           )}
 
-          {activeTab === 'report' && isAuthenticated && (
-            <div className="p-4">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Zgłoś problem</h2>
-                <p className="text-gray-700">Funkcja zgłaszania problemów będzie dostępna wkrótce.</p>
-              </div>
-            </div>
-          )}
+{activeTab === 'favorites' && isAuthenticated && (
+  <div className="p-4">
+    <FavoritesList />
+  </div>
+)}
 
-          {(activeTab === 'add' || activeTab === 'report') && !isAuthenticated && (
-            <div className="p-4">
-              <div className="bg-amber-50 rounded-lg shadow-sm border border-amber-200 p-6 text-center">
-                <h2 className="text-xl font-bold text-amber-800 mb-4">Wymagane logowanie</h2>
-                <p className="text-amber-700 mb-4">
-                  Aby uzyskać dostęp do tej funkcji, musisz być zalogowany.
-                </p>
-                <button
-                  onClick={() => openAuthModal('login')}
-                  className="bg-amber-600 text-white px-6 py-2 rounded-lg hover:bg-amber-700 transition-colors"
-                >
-                  Zaloguj się
-                </button>
-              </div>
-            </div>
-          )}
         </main>
       </div>
     </div>
