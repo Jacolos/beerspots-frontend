@@ -8,6 +8,7 @@ const REPORT_REASONS = [
   { value: 'closed', label: 'Lokal zamknięty' },
   { value: 'inappropriate', label: 'Nieodpowiednia treść' },
   { value: 'spam', label: 'Spam' },
+  { value: 'duplicate', label: 'Duplikat' },
   { value: 'other', label: 'Inny powód' }
 ];
 
@@ -48,8 +49,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
       spot_id: spotId
     };
 
-    console.log('Sending report data:', reportData); // Dodane logowanie
-
     try {
       const response = await fetch('https://piwo.jacolos.pl/api/reports', {
         method: 'POST',
@@ -62,7 +61,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
       });
 
       const data = await response.json();
-      console.log('Response from server:', data); // Dodane logowanie
 
       if (!response.ok) {
         setError(data.message);
@@ -79,7 +77,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
       }, 2000);
 
     } catch (err) {
-      console.error('Error details:', err); // Dodane szczegółowe logowanie błędu
       setError(err instanceof Error ? err.message : 'Wystąpił błąd podczas wysyłania zgłoszenia');
     } finally {
       setIsSubmitting(false);
@@ -90,8 +87,8 @@ const ReportForm: React.FC<ReportFormProps> = ({
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="bg-white rounded-lg shadow-xl max-w-md w-full">
+      <div className="fixed inset-0 flex items-start justify-center p-4 sm:items-center">
+        <Dialog.Panel className="bg-white rounded-lg shadow-xl max-w-md w-full mt-16 sm:mt-0">
           {/* Header */}
           <div className="p-6 border-b">
             <div className="flex justify-between items-start">

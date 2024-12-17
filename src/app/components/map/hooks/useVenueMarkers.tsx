@@ -1,37 +1,74 @@
 import React from 'react';
 import { useEffect, useRef } from 'react';
-import type { Map as LeafletMap, Marker, Popup } from 'leaflet';
+import type { Map as LeafletMap, Marker } from 'leaflet';
 import { createRoot } from 'react-dom/client';
 import { createPriceMarker } from '../utils/markers';
 import type { Venue } from '../../../types';
-import VenuePopup from '../components/VenuePopup';
+import VenuePopup from '../popups/VenuePopup';
+import L from 'leaflet';
 
 interface UseVenueMarkersProps {
   mapInstance: React.RefObject<LeafletMap | null>;
   mapReady: boolean;
   venues: Venue[];
   handleReviewsClick: (venue: Venue) => void;
+  isAddMode?: boolean;
+  selectedLocation?: {lat: number; lng: number} | null;
 }
 
 export const useVenueMarkers = ({
   mapInstance,
   mapReady,
   venues,
-  handleReviewsClick
+  handleReviewsClick,
+  isAddMode = false,
+  selectedLocation
 }: UseVenueMarkersProps) => {
   const markersRef = useRef<Marker[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const markerClusterGroupRef = useRef<any>(null);
-  const popupRootsRef = useRef<Map<number, { 
-    root: ReturnType<typeof createRoot>, 
-    element: HTMLElement,
-    popup: Popup 
-  }>>(new Map());
-  const currentOpenPopupRef = useRef<number | null>(null);
+  const markerClusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const popupContainerRef = useRef<HTMLDivElement | null>(null);
+  const popupRootRef = useRef<ReturnType<typeof createRoot> | null>(null);
+  const activeVenueRef = useRef<{id: number; lat: number; lng: number} | null>(null);
+  const isUnmountedRef = useRef(false);
+  const tempMarkerRef = useRef<Marker | null>(null);
 
+  // Inicjalizacja kontenera dla popupu
   useEffect(() => {
-  if (!mapInstance.current || !mapReady) return;
+    const container = document.createElement('div');
+    container.className = 'leaflet-popup-fixed';
+    container.style.position = 'absolute';
+    container.style.zIndex = '10';
+    container.style.display = 'none';
+    container.style.transform = 'translate(-50%, -100%)';
+    document.body.appendChild(container);
+    popupContainerRef.current = container;
+    popupRootRef.current = createRoot(container);
+    isUnmountedRef.current = false;
 
+    return () => {
+      isUnmountedRef.current = true;
+      if (popupRootRef.current) {
+        popupRootRef.current.unmount();
+        popupRootRef.current = null;
+      }
+      if (popupContainerRef.current) {
+        popupContainerRef.current.remove();
+        popupContainerRef.current = null;
+      }
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Zarządzanie markerami i clusterami
+  useEffect(() => {
+    if (!mapInstance.current || !mapReady || !popupRootRef.current || !popupContainerRef.current) return;
+    
+    const map = mapInstance.current;
+
+    // Inicjalizacja cluster group jeśli nie istnieje
     if (!markerClusterGroupRef.current) {
       const L = window.L;
       markerClusterGroupRef.current = L.markerClusterGroup({
@@ -40,47 +77,33 @@ export const useVenueMarkers = ({
         showCoverageOnHover: true,
         zoomToBoundsOnClick: true,
         disableClusteringAtZoom: 16,
-        chunkedLoading: true,
-        iconCreateFunction: function(cluster) {
-          const count = cluster.getChildCount();
-          let size = 'small';
-          let additional = '';
-
-          if (count > 50) {
-            size = 'large';
-            additional = 'bg-red-500';
-          } else if (count > 10) {
-            size = 'medium';
-            additional = 'bg-amber-500';
-          } else {
-            additional = 'bg-amber-400';
-          }
-
-          return L.divIcon({
-            html: `<div class="cluster-marker ${additional} text-white font-bold rounded-full flex items-center justify-center" style="width: 40px; height: 40px;">
-              ${count}
-            </div>`,
-            className: `marker-cluster marker-cluster-${size}`,
-            iconSize: L.point(40, 40)
-          });
-        }
+        chunkedLoading: true
       });
-      mapInstance.current.addLayer(markerClusterGroupRef.current);
+      map.addLayer(markerClusterGroupRef.current);
     }
 
-    // Clear existing markers
-    markerClusterGroupRef.current.clearLayers();
+    const updatePopupPosition = () => {
+      if (activeVenueRef.current && popupContainerRef.current && map) {
+        const point = map.latLngToContainerPoint([
+          activeVenueRef.current.lat,
+          activeVenueRef.current.lng
+        ]);
+        
+        const mapContainer = map.getContainer();
+        const mapRect = mapContainer.getBoundingClientRect();
+
+        popupContainerRef.current.style.left = `${point.x + mapRect.left}px`;
+        popupContainerRef.current.style.top = `${point.y + mapRect.top - 10}px`;
+      }
+    };
+
+    // Czyszczenie starych markerów
+    if (markerClusterGroupRef.current) {
+      markerClusterGroupRef.current.clearLayers();
+    }
     markersRef.current = [];
 
-    // Cleanup old popup roots
-    popupRootsRef.current.forEach(({ root, popup }) => {
-      root.unmount();
-      popup.remove();
-    });
-    popupRootsRef.current.clear();
-    currentOpenPopupRef.current = null;
-
-    // Add new markers
+    // Dodawanie nowych markerów dla lokali
     venues.forEach(venue => {
       if (!venue.lat || !venue.lng) return;
 
@@ -88,85 +111,112 @@ export const useVenueMarkers = ({
         icon: createPriceMarker(venue.price)
       });
 
-      // Create a wrapper element for the popup content
-      const popupContent = document.createElement('div');
-      const root = createRoot(popupContent);
-
-      // Create popup
-      const popup = window.L.popup({
-        minWidth: 288,
-        maxWidth: 288,
-        closeButton: true,
-        closeOnClick: false,
-        autoClose: true,
-        className: 'venue-popup'
-      });
-
-      // Store references
-      popupRootsRef.current.set(venue.id, { 
-        root, 
-        element: popupContent,
-        popup 
-      });
-
-      // Render the VenuePopup component
-      root.render(
-        <VenuePopup
-          spotId={venue.id}
-          name={venue.name}
-          beer={venue.beer}
-          price={venue.price}
-          rating={venue.rating}
-          reviewCount={venue.reviewCount}
-          address={venue.address}
-          openingStatus="unknown"
-          latitude={venue.lat}
-          longitude={venue.lng}
-        />
-      );
-
-      popup.setContent(popupContent);
-
-      // Handle marker click
-      marker.on('click', () => {
-        // If there's another popup open, close it first
-        if (currentOpenPopupRef.current && currentOpenPopupRef.current !== venue.id) {
-          const currentPopup = popupRootsRef.current.get(currentOpenPopupRef.current);
-          if (currentPopup) {
-            currentPopup.popup.remove();
-          }
+      marker.on('click', (e) => {
+        e.originalEvent.stopPropagation();
+        
+        if (isUnmountedRef.current || !popupRootRef.current || !popupContainerRef.current) return;
+      
+        if (activeVenueRef.current?.id !== venue.id) {
+          activeVenueRef.current = {
+            id: venue.id,
+            lat: venue.lat,
+            lng: venue.lng
+          };
+      
+          popupRootRef.current.render(
+            <VenuePopup
+              spotId={venue.id}
+              name={venue.name}
+              beer={venue.beer}
+              price={venue.price}
+              rating={venue.rating}
+              reviewCount={venue.reviewCount}
+              address={venue.address}
+              openingStatus="unknown"
+              latitude={venue.lat}
+              longitude={venue.lng}
+              mapInstance={mapInstance.current}  // dodaj to
+              onClose={() => {
+                if (popupContainerRef.current) {
+                  popupContainerRef.current.style.display = 'none';
+                }
+                activeVenueRef.current = null;
+              }}
+            />
+          );
         }
-
-        // Open the new popup
-        popup.setLatLng([venue.lat, venue.lng]);
-        mapInstance.current?.addLayer(popup);
-        currentOpenPopupRef.current = venue.id;
+      
+        popupContainerRef.current.style.display = 'block';
+        updatePopupPosition();
       });
 
-      // Handle popup close
-      popup.on('remove', () => {
-        if (currentOpenPopupRef.current === venue.id) {
-          currentOpenPopupRef.current = null;
-        }
-      });
-
-      // Add to refs
       markersRef.current.push(marker);
-      markerClusterGroupRef.current.addLayer(marker);
+      if (markerClusterGroupRef.current) {
+        markerClusterGroupRef.current.addLayer(marker);
+      }
     });
 
-    // Cleanup function
+    // Event handlers for map movement
+    const handleMapMove = () => {
+      if (!isUnmountedRef.current) {
+        requestAnimationFrame(updatePopupPosition);
+      }
+    };
+
+    const handleMapClick = (e: L.LeafletMouseEvent) => {
+      if (isUnmountedRef.current) return;
+      
+      const target = e.originalEvent.target as HTMLElement;
+      if (!target.closest('.leaflet-popup-fixed') && 
+          !target.closest('.venue-popup') && 
+          !target.closest('.custom-marker')) {
+        if (popupContainerRef.current) {
+          popupContainerRef.current.style.display = 'none';
+        }
+        activeVenueRef.current = null;
+      }
+    };
+
+    map.on('move', handleMapMove);
+    map.on('zoom', handleMapMove);
+    map.on('moveend', handleMapMove);
+    map.on('zoomend', handleMapMove);
+    map.on('click', handleMapClick);
+    window.addEventListener('resize', handleMapMove);
+
     return () => {
-      popupRootsRef.current.forEach(({ root, popup }) => {
-        root.unmount();
-        popup.remove();
-      });
+      map.off('move', handleMapMove);
+      map.off('zoom', handleMapMove);
+      map.off('moveend', handleMapMove);
+      map.off('zoomend', handleMapMove);
+      map.off('click', handleMapClick);
+      window.removeEventListener('resize', handleMapMove);
+
       if (markerClusterGroupRef.current) {
         markerClusterGroupRef.current.clearLayers();
       }
-      currentOpenPopupRef.current = null;
     };
   }, [venues, mapReady, handleReviewsClick]);
 
-  return { markersRef, markerClusterGroupRef };
+  // Czyszczenie markera tymczasowego przy zmianie trybu lub lokalizacji
+  useEffect(() => {
+    if (!isAddMode || !selectedLocation) {
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
+      }
+    }
+  }, [isAddMode, selectedLocation]);
+
+  return {
+    markersRef,
+    markerClusterGroupRef,
+    tempMarkerRef,
+    clearTempMarker: () => {
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
+      }
+    }
+  };
 };

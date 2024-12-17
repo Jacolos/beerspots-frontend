@@ -1,0 +1,40 @@
+import React from 'react';
+import { Map, ListOrdered, Heart, Plus } from 'lucide-react';
+
+const BottomNavigation = ({
+  activeTab,
+  onTabChange,
+  isAuthenticated
+}) => {
+  const navItems = [
+    { id: 'map', label: 'Mapa', icon: <Map size={20} /> },
+    { id: 'list', label: 'Lista', icon: <ListOrdered size={20} /> },
+    { id: 'add', label: 'Dodaj', icon: <Plus size={20} /> },
+    ...(isAuthenticated ? [{ id: 'favorites', label: 'Ulubione', icon: <Heart size={20} /> }] : [])
+  ];
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50">
+      <div className="max-w-lg mx-auto px-4">
+        <div className="flex justify-around items-center h-16">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onTabChange(item.id)}
+              className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors ${
+                activeTab === item.id
+                  ? 'text-amber-600'
+                  : 'text-gray-600 hover:text-amber-600'
+              }`}
+            >
+              {item.icon}
+              <span className="text-xs mt-1">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default BottomNavigation;

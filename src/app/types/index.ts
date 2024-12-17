@@ -22,10 +22,34 @@ export interface AddPlaceFormData {
   beerPrice: number | null;
   beerType: string;
   alcoholPercentage: number | null;
-  openingHours: {
+}
+
+export interface CreateBeerSpotData {
+  name: string;
+  address: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+  opening_hours: {
     [key: string]: {
       open: string;
       close: string;
     };
   };
+}
+
+export interface AddBeerData {
+  name: string;
+  price: number;
+  type: string;
+  alcohol_percentage: number;
+  status: string;
+}
+
+export interface BeerData {
+  price: number;
+  type: string;
+  alcohol_percentage: number;
+  status: string;
+  name: string;
 }

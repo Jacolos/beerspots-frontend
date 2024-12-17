@@ -38,7 +38,10 @@ export default function ClientLayout({
       />
 
       <Toaster
-        position="bottom-center"
+        position="top-center"
+        containerStyle={{
+          top: 50
+        }}
         toastOptions={{
           className: 'text-sm',
           duration: 3000,
@@ -88,6 +91,14 @@ export default function ClientLayout({
 
         .leaflet-container {
           font-family: inherit;
+        }
+
+        .leaflet-control-container .leaflet-bottom.leaflet-right {
+          bottom: 35px !important; 
+        }
+
+        .leaflet-control-container .leaflet-right {
+          right: 12px !important; 
         }
 
         .leaflet-popup-content-wrapper {

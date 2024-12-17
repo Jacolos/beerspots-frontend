@@ -1,4 +1,3 @@
-// src/app/components/map/hooks/useMapInitialization.ts
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Map as LeafletMap, LeafletMouseEvent } from 'leaflet';
 import { createUserLocationMarker, createPriceMarker } from '../utils/markers';
@@ -16,6 +15,7 @@ interface UseMapInitializationProps {
   }) => void;
   isAddMode?: boolean;
   onMapClick?: (e: LeafletMouseEvent) => void;
+  selectedLocation?: { lat: number; lng: number } | null;
 }
 
 export const useMapInitialization = ({
@@ -25,7 +25,8 @@ export const useMapInitialization = ({
   isDefault,
   onBoundsChanged,
   isAddMode,
-  onMapClick
+  onMapClick,
+  selectedLocation
 }: UseMapInitializationProps) => {
   const mapInstance = useRef<LeafletMap | null>(null);
   const userLocationMarkerRef = useRef<L.Marker | null>(null);
@@ -139,10 +140,19 @@ export const useMapInitialization = ({
     if (!mapInstance.current || !mapReady) return;
 
     const handleClick = (e: LeafletMouseEvent) => {
-      if (!isAddMode || !onMapClick) return;
+      if (!isAddMode || !onMapClick) {
+        // Jeśli nie jesteśmy w trybie dodawania, usuń marker tymczasowy
+        if (tempMarkerRef.current) {
+          tempMarkerRef.current.remove();
+          tempMarkerRef.current = null;
+        }
+        return;
+      }
 
+      // Usuń poprzedni marker tymczasowy jeśli istnieje
       if (tempMarkerRef.current) {
         tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
       }
 
       const L = window.L;
@@ -162,8 +172,35 @@ export const useMapInitialization = ({
       if (mapInstance.current) {
         mapInstance.current.off('click', handleClick);
       }
+      // Zawsze czyść marker przy odmontowaniu
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
+      }
     };
   }, [isAddMode, onMapClick, mapReady]);
+
+  // Efekt monitorujący zmiany trybu dodawania i selectedLocation
+  useEffect(() => {
+    if (!isAddMode) {
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
+      }
+    } else if (selectedLocation && mapInstance.current && mapReady) {
+      // Aktualizuj marker dla nowej lokalizacji
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+      }
+      const L = window.L;
+      tempMarkerRef.current = L.marker([selectedLocation.lat, selectedLocation.lng], {
+        icon: createPriceMarker('Nowa', true)
+      })
+        .bindPopup('Nowa lokalizacja')
+        .addTo(mapInstance.current)
+        .openPopup();
+    }
+  }, [isAddMode, selectedLocation, mapReady]);
 
   // Update map view when location changes
   useEffect(() => {

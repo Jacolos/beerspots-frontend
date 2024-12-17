@@ -1,47 +1,45 @@
-import React, { useRef, useState, useCallback } from 'react';
-import type { LeafletMouseEvent } from 'leaflet';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import type { LeafletMouseEvent, Map as LeafletMap } from 'leaflet';
 import { useGeolocation } from '../../hooks/useGeolocation';
-import { useAuth } from '../../hooks/useAuth';
+//import { useAuth } from '../../hooks/useAuth';
 import { useMapInitialization } from './hooks/useMapInitialization';
 import { useVenueMarkers } from './hooks/useVenueMarkers';
 import { LocationStatus } from './components/LocationStatus';
 import { ReviewsModal } from './components/ReviewsModal';
 import type { Venue } from '../../types';
-//import { fetchReviews } from './utils/api';
+import { createPriceMarker } from './utils/markers';
 
 interface MapComponentProps {
   venues: Venue[];
   onMapClick?: (e: LeafletMouseEvent) => void;
   isAddMode?: boolean;
+  selectedLocation: {lat: number; lng: number} | null;
   onBoundsChanged?: (center: { 
     latitude: number; 
     longitude: number; 
     zoom: number 
   }) => void;
+  onMapReady?: (map: LeafletMap) => void;
 }
 
 const MapComponent: React.FC<MapComponentProps> = ({
   venues,
   onMapClick,
-  isAddMode,
-  onBoundsChanged
+  isAddMode = false,
+  selectedLocation,
+  onBoundsChanged,
 }) => {
-  // Use non-null assertion since the ref will be attached to a div that always exists
+  // Refs
   const mapRef = useRef<HTMLDivElement>(null!);
-  const { latitude, longitude, isLoading, error, isDefault } = useGeolocation();
-  const { token } = useAuth();
+  const tempMarkerRef = useRef<L.Marker | null>(null);
 
-  // Reviews modal state
+  // State
   const [isReviewsModalOpen, setReviewsModalOpen] = useState(false);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
-  //@typescript-eslint/no-unused-vars
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [reviews, setReviews] = useState([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  // Hooks
+  const { latitude, longitude, isLoading, error, isDefault } = useGeolocation();
+//  const { token } = useAuth();
 
   // Initialize map
   const { mapInstance, mapReady } = useMapInitialization({
@@ -51,34 +49,75 @@ const MapComponent: React.FC<MapComponentProps> = ({
     isDefault,
     onBoundsChanged,
     isAddMode,
-    onMapClick
+    onMapClick: (e) => {
+      // Przekazujemy kliknięcie dalej tylko jeśli mamy handler
+      if (onMapClick) {
+        onMapClick(e);
+      }
+    }
   });
 
   // Handle reviews modal
   const handleReviewsClick = useCallback(async (venue: Venue) => {
     setSelectedVenue(venue);
     setReviewsModalOpen(true);
-    setIsLoadingReviews(true);
-    
-    try {
-    //  const reviewsData = await fetchReviews(venue.id, token);
-   //   setReviews(reviewsData);
-     // setReviewsError(null);
-    } catch (err) {
-      setReviewsError(err instanceof Error ? err.message : 'Wystąpił błąd podczas pobierania opinii');
-   //   setReviews([]);
-    } finally {
-    //  setIsLoadingReviews(false);
-    }
-  }, [token]);
+  }, []);
 
-  // Initialize markers
+  // Initialize venue markers
   useVenueMarkers({
     mapInstance,
     mapReady,
     venues,
-    handleReviewsClick
+    handleReviewsClick,
+    isAddMode
   });
+
+  // Manage temporary marker for new location
+  useEffect(() => {
+    if (!mapInstance.current || !mapReady) return;
+
+    // Zawsze usuwamy stary marker
+    if (tempMarkerRef.current) {
+      tempMarkerRef.current.remove();
+      tempMarkerRef.current = null;
+    }
+
+    // Dodajemy nowy marker tylko jeśli mamy lokalizację i jesteśmy w trybie dodawania
+    if (selectedLocation && isAddMode) {
+      const L = window.L;
+      tempMarkerRef.current = L.marker([selectedLocation.lat, selectedLocation.lng], {
+        icon: createPriceMarker('Nowa', true)
+      })
+        .addTo(mapInstance.current);
+    }
+
+    // Cleanup
+    return () => {
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
+      }
+    };
+  }, [selectedLocation, isAddMode, mapReady]);
+
+  // Clean up marker when leaving add mode
+  useEffect(() => {
+    // Czyść marker gdy wychodzimy z trybu dodawania
+    if (!isAddMode && tempMarkerRef.current) {
+      tempMarkerRef.current.remove();
+      tempMarkerRef.current = null;
+    }
+  }, [isAddMode]);
+
+  // Clean up marker on component unmount
+  useEffect(() => {
+    return () => {
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.remove();
+        tempMarkerRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="relative h-full w-full">

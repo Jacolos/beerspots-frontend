@@ -1,9 +1,9 @@
-import { AddPlaceFormData } from '../types';
 import { getAuthToken } from './auth';
 
 const API_URL = 'https://piwo.jacolos.pl/api';
 
-export interface MapBounds {
+// Interfaces
+interface MapBounds {
   north: number;
   south: number;
   east: number;
@@ -24,6 +24,37 @@ interface ReviewData {
   visit_date: string;
 }
 
+interface CreateBeerSpotData {
+  name: string;
+  address: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+  opening_hours: {
+    [key: string]: {
+      open: string;
+      close: string;
+    };
+  };
+}
+
+interface AddBeerData {
+  name: string;
+  price: number;
+  type: string;
+  alcohol_percentage: number;
+  status: string;
+}
+
+interface BeerData {
+  price: number;
+  type: string;
+  alcohol_percentage: number;
+  status: string;
+  name: string;
+}
+
+// Helper Functions
 const getHeaders = () => {
   const token = getAuthToken();
   return {
@@ -32,7 +63,6 @@ const getHeaders = () => {
   };
 };
 
-// Funkcja do obliczania promienia na podstawie zoomu
 const calculateRadius = (zoom: number): number => {
   if (zoom >= 15) return 5;    // bardzo blisko
   if (zoom >= 13) return 10;   // miasto
@@ -41,7 +71,6 @@ const calculateRadius = (zoom: number): number => {
   return 100;                  // cały kraj
 };
 
-// Funkcja do obsługi błędów HTTP
 const handleApiError = async (response: Response) => {
   if (!response.ok) {
     let errorMessage = 'Wystąpił błąd podczas komunikacji z serwerem';
@@ -56,7 +85,7 @@ const handleApiError = async (response: Response) => {
   return response;
 };
 
-// Beer Spots
+// Beer Spots API Functions
 export const fetchNearbyVenues = async (options: FetchVenuesOptions) => {
   try {
     const radius = options.radius || calculateRadius(options.zoom || 13);
@@ -96,7 +125,7 @@ export const fetchBeerSpot = async (id: number) => {
   }
 };
 
-export const addBeerSpot = async (data: AddPlaceFormData): Promise<number> => {
+export const addBeerSpot = async (data: CreateBeerSpotData): Promise<number> => {
   const token = getAuthToken();
   if (!token) {
     throw new Error('Musisz być zalogowany, aby dodać lokal');
@@ -106,14 +135,7 @@ export const addBeerSpot = async (data: AddPlaceFormData): Promise<number> => {
     const response = await fetch(`${API_URL}/beer-spots`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({
-        name: data.name,
-        address: data.address,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        description: data.description,
-        opening_hours: data.openingHours
-      })
+      body: JSON.stringify(data)
     }).then(handleApiError);
 
     const responseData = await response.json();
@@ -124,7 +146,7 @@ export const addBeerSpot = async (data: AddPlaceFormData): Promise<number> => {
   }
 };
 
-export const updateBeerSpot = async (id: number, data: Partial<AddPlaceFormData>) => {
+export const updateBeerSpot = async (id: number, data: Partial<CreateBeerSpotData>) => {
   try {
     const response = await fetch(`${API_URL}/beer-spots/${id}`, {
       method: 'PUT',
@@ -151,7 +173,7 @@ export const deleteBeerSpot = async (id: number) => {
   }
 };
 
-// Beers
+// Beers API Functions
 export const fetchBeers = async (spotId: number) => {
   try {
     const response = await fetch(`${API_URL}/beer-spots/${spotId}/beers`, {
@@ -165,16 +187,7 @@ export const fetchBeers = async (spotId: number) => {
   }
 };
 
-interface BeerData {
-  price: number;
-  type: string;
-  alcohol_percentage: number;
-  status: string;
-  name: string;
-}
-
-
-export const addBeerToBeerSpot = async (spotId: number, data: AddPlaceFormData) => {
+export const addBeerToBeerSpot = async (spotId: number, data: AddBeerData) => {
   const token = getAuthToken();
   if (!token) {
     throw new Error('Musisz być zalogowany, aby dodać piwo');
@@ -183,13 +196,7 @@ export const addBeerToBeerSpot = async (spotId: number, data: AddPlaceFormData) 
   const response = await fetch(`${API_URL}/beer-spots/${spotId}/beers`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify({
-      name: data.beerName,
-      price: Number(data.beerPrice).toFixed(2),
-      type: data.beerType,
-      alcohol_percentage: data.alcoholPercentage,
-      status: 'available'
-    })
+    body: JSON.stringify(data)
   });
 
   if (!response.ok) throw new Error('Nie udało się dodać piwa');
@@ -223,7 +230,7 @@ export const deleteBeer = async (beerId: number) => {
   }
 };
 
-// Reviews
+// Reviews API Functions
 export const fetchReviews = async (spotId: number) => {
   try {
     const response = await fetch(`${API_URL}/beer-spots/${spotId}/reviews`, {
@@ -292,7 +299,7 @@ export const deleteReview = async (reviewId: number) => {
   }
 };
 
-// Profile
+// Profile API Functions
 export const fetchProfile = async () => {
   try {
     const response = await fetch(`${API_URL}/profile`, {

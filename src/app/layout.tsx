@@ -1,8 +1,8 @@
-// src/app/layout.tsx
 import { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import ClientLayout from "./ClientLayout";
+import AppLayout from './components/layout/AppLayout';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,7 +25,7 @@ export default function RootLayout({
         <meta charSet="utf-8" />
         <meta 
           name="viewport" 
-          content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" 
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
         />
         <meta 
           httpEquiv="Content-Security-Policy" 
@@ -51,7 +51,9 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} antialiased min-h-screen bg-gray-50`}>
-        <ClientLayout>{children}</ClientLayout>
+        <ClientLayout>
+          <AppLayout>{children}</AppLayout>
+        </ClientLayout>
       </body>
     </html>
   );
