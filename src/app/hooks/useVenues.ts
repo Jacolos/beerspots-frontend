@@ -210,27 +210,26 @@ export const useVenues = (initialLat: number, initialLng: number) => {
   }, []);
 
   // Filtrowanie lokali
-  const filteredVenues = venues.filter(venue => {
-    if (!searchTerm) return true;
-    
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      venue.name.toLowerCase().includes(searchLower) ||
-      venue.address?.toLowerCase().includes(searchLower) ||
-      venue.beer.toLowerCase().includes(searchLower) ||
-      venue.price.toLowerCase().includes(searchLower)
-    );
-  });
+  const filtered = venues.filter(venue => 
+    venue.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    venue.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    venue.beer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    venue.price?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Pobieranie lokali do widoku listy
   const getListVenues = useCallback(() => {
-    return [...filteredVenues]
-      .sort((a, b) => a.distance - b.distance)
+    return [...filtered]
+      .sort((a, b) => {
+        const distA = a.distance ?? Infinity;
+        const distB = b.distance ?? Infinity;
+        return distA - distB;
+      })
       .slice(0, MAX_VENUES_LIST);
-  }, [filteredVenues]);
+  }, [filtered]);
 
   return {
-    venues: filteredVenues,
+    venues: filtered,
     listVenues: getListVenues(),
     isLoading,
     error,

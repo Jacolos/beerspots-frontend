@@ -51,7 +51,11 @@ export const useNearbyVenues = (
       }));
 
       // Sortuj po odległości z prawidłowymi typami
-      const sortedVenues = venuesData.sort((a: Venue, b: Venue) => a.distance - b.distance);
+      const sortedVenues = venuesData.sort((a: Venue, b: Venue) => {
+        const distA = a.distance ?? Infinity;
+        const distB = b.distance ?? Infinity;
+        return distA - distB;
+      });
       
       setVenues(sortedVenues);
       setFilteredVenues(sortedVenues);
@@ -79,8 +83,8 @@ export const useNearbyVenues = (
     const filtered = venues.filter(venue => 
       venue.name.toLowerCase().includes(searchLower) ||
       venue.address?.toLowerCase().includes(searchLower) ||
-      venue.beer.toLowerCase().includes(searchLower) ||
-      venue.price.toLowerCase().includes(searchLower)
+      venue.beer?.toLowerCase().includes(searchLower) ||
+      venue.price?.toLowerCase().includes(searchLower)
     );
 
     setFilteredVenues(filtered);

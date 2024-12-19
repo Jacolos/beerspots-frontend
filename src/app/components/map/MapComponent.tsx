@@ -114,7 +114,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
       venues.forEach(venue => {
         try {
           const marker = window.L.marker([venue.lat, venue.lng], {
-            icon: createPriceMarker(venue.price)
+            icon: createPriceMarker(venue.price || '???')
           });
 
           marker.on('click', (e) => {

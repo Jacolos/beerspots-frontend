@@ -6,6 +6,9 @@ import { createPriceMarker } from '../utils/markers';
 import type { Venue } from '../../../types';
 import VenuePopup from '../popups/VenuePopup';
 import L from 'leaflet';
+import 'leaflet.markercluster/dist/leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 
 interface UseVenueMarkersProps {
   mapInstance: React.RefObject<LeafletMap | null>;
@@ -116,7 +119,7 @@ export const useVenueMarkers = ({
 
       try {
         const marker = window.L.marker([venue.lat, venue.lng], {
-          icon: createPriceMarker(venue.price)
+          icon: createPriceMarker(venue.price || '???')
         });
 
         marker.on('click', (e) => {
@@ -203,7 +206,7 @@ export const useVenueMarkers = ({
         venues.forEach(venue => {
           try {
             const marker = window.L.marker([venue.lat, venue.lng], {
-              icon: createPriceMarker(venue.price)
+              icon: createPriceMarker(venue.price || '???')
             });
             markersRef.current.push(marker);
             if (markerClusterGroupRef.current) {
