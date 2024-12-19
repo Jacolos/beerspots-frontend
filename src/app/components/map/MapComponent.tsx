@@ -1,13 +1,12 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import type { LeafletMouseEvent, Map as LeafletMap } from 'leaflet';
 import { useGeolocation } from '../../hooks/useGeolocation';
-//import { useAuth } from '../../hooks/useAuth';
 import { useMapInitialization } from './hooks/useMapInitialization';
 import { useVenueMarkers } from './hooks/useVenueMarkers';
 import { LocationStatus } from './components/LocationStatus';
 import { ReviewsModal } from './components/ReviewsModal';
-import type { Venue } from '../../types';
 import { createPriceMarker } from './utils/markers';
+import type { Venue } from '../../types';
 
 interface MapComponentProps {
   venues: Venue[];
@@ -28,10 +27,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
   isAddMode = false,
   selectedLocation,
   onBoundsChanged,
+  onMapReady
 }) => {
   // Refs
   const mapRef = useRef<HTMLDivElement>(null!);
-  const tempMarkerRef = useRef<L.Marker | null>(null);
+  const markersRef = useRef<L.Marker[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerClusterGroupRef = useRef<any>(null);
+  const resetTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // State
   const [isReviewsModalOpen, setReviewsModalOpen] = useState(false);
@@ -39,7 +42,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   // Hooks
   const { latitude, longitude, isLoading, error, isDefault } = useGeolocation();
-//  const { token } = useAuth();
 
   // Initialize map
   const { mapInstance, mapReady } = useMapInitialization({
@@ -50,72 +52,127 @@ const MapComponent: React.FC<MapComponentProps> = ({
     onBoundsChanged,
     isAddMode,
     onMapClick: (e) => {
-      // Przekazujemy kliknięcie dalej tylko jeśli mamy handler
       if (onMapClick) {
         onMapClick(e);
       }
-    }
+    },
+    selectedLocation
   });
 
   // Handle reviews modal
-  const handleReviewsClick = useCallback(async (venue: Venue) => {
+  const handleReviewsClick = useCallback((venue: Venue) => {
     setSelectedVenue(venue);
     setReviewsModalOpen(true);
   }, []);
 
-  // Initialize venue markers
+  // Get markers refs from useVenueMarkers hook
   useVenueMarkers({
     mapInstance,
     mapReady,
     venues,
     handleReviewsClick,
-    isAddMode
+    isAddMode,
+    selectedLocation
   });
 
-  // Manage temporary marker for new location
+  // Handle map ready callback
+  useEffect(() => {
+    if (mapReady && mapInstance.current && onMapReady) {
+      onMapReady(mapInstance.current);
+    }
+  }, [mapReady, onMapReady]);
+
+  // Handle markers reset
+  const handleMarkersReset = useCallback(() => {
+    if (!mapInstance.current || !mapReady) return;
+
+    if (markersRef.current.length === 0 && venues.length > 0) {
+      // Wyczyść istniejące markery
+      if (markerClusterGroupRef.current) {
+        markerClusterGroupRef.current.clearLayers();
+      }
+      markersRef.current.forEach(marker => {
+        if (marker) marker.remove();
+      });
+      markersRef.current = [];
+
+      // Utwórz cluster group jeśli nie istnieje
+      if (!markerClusterGroupRef.current) {
+        markerClusterGroupRef.current = window.L.markerClusterGroup({
+          maxClusterRadius: 50,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: true,
+          zoomToBoundsOnClick: true,
+          disableClusteringAtZoom: 16,
+          chunkedLoading: true,
+          removeOutsideVisibleBounds: true
+        });
+        mapInstance.current.addLayer(markerClusterGroupRef.current);
+      }
+
+      // Dodaj markery ponownie
+      venues.forEach(venue => {
+        try {
+          const marker = window.L.marker([venue.lat, venue.lng], {
+            icon: createPriceMarker(venue.price)
+          });
+
+          marker.on('click', (e) => {
+            e.originalEvent.stopPropagation();
+            handleReviewsClick(venue);
+          });
+
+          markersRef.current.push(marker);
+          if (markerClusterGroupRef.current) {
+            markerClusterGroupRef.current.addLayer(marker);
+          }
+        } catch (error) {
+          console.error('Error recreating marker:', error);
+        }
+      });
+    }
+  }, [venues, mapReady, handleReviewsClick]);
+
+  // Add map event listeners
   useEffect(() => {
     if (!mapInstance.current || !mapReady) return;
 
-    // Zawsze usuwamy stary marker
-    if (tempMarkerRef.current) {
-      tempMarkerRef.current.remove();
-      tempMarkerRef.current = null;
-    }
+    const map = mapInstance.current;
 
-    // Dodajemy nowy marker tylko jeśli mamy lokalizację i jesteśmy w trybie dodawania
-    if (selectedLocation && isAddMode) {
-      const L = window.L;
-      tempMarkerRef.current = L.marker([selectedLocation.lat, selectedLocation.lng], {
-        icon: createPriceMarker('Nowa', true)
-      })
-        .addTo(mapInstance.current);
-    }
-
-    // Cleanup
-    return () => {
-      if (tempMarkerRef.current) {
-        tempMarkerRef.current.remove();
-        tempMarkerRef.current = null;
+    const handleMapMove = () => {
+      if (resetTimeoutRef.current) {
+        clearTimeout(resetTimeoutRef.current);
       }
+      resetTimeoutRef.current = setTimeout(handleMarkersReset, 300);
     };
-  }, [selectedLocation, isAddMode, mapReady]);
 
-  // Clean up marker when leaving add mode
-  useEffect(() => {
-    // Czyść marker gdy wychodzimy z trybu dodawania
-    if (!isAddMode && tempMarkerRef.current) {
-      tempMarkerRef.current.remove();
-      tempMarkerRef.current = null;
-    }
-  }, [isAddMode]);
+    map.on('moveend', handleMapMove);
+    map.on('zoomend', handleMapMove);
+    map.on('locationfound', handleMapMove);
 
-  // Clean up marker on component unmount
+    return () => {
+      if (resetTimeoutRef.current) {
+        clearTimeout(resetTimeoutRef.current);
+      }
+      map.off('moveend', handleMapMove);
+      map.off('zoomend', handleMapMove);
+      map.off('locationfound', handleMapMove);
+    };
+  }, [mapInstance, mapReady, handleMarkersReset]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (tempMarkerRef.current) {
-        tempMarkerRef.current.remove();
-        tempMarkerRef.current = null;
+      if (resetTimeoutRef.current) {
+        clearTimeout(resetTimeoutRef.current);
       }
+      if (markerClusterGroupRef.current && mapInstance.current) {
+        mapInstance.current.removeLayer(markerClusterGroupRef.current);
+      }
+      markersRef.current.forEach(marker => {
+        if (marker) marker.remove();
+      });
+      markersRef.current = [];
     };
   }, []);
 

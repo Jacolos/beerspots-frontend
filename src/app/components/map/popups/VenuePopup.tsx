@@ -25,7 +25,7 @@ const VenuePopup: React.FC<VenuePopupProps> = ({
   spotId,
   name,
   beer = 'Nieznane',
-  price = 'Brak ceny',
+  price = '??? zł',
   rating = 0,
   reviewCount = 0,
   address,

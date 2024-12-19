@@ -145,7 +145,7 @@ export const useVenues = (initialLat: number, initialLng: number) => {
         id: venue.id,
         name: venue.name,
         beer: venue.cheapest_beer || 'Nieznane',
-        price: venue.price ? `${Number(venue.price).toFixed(2)} zł` : 'Brak ceny',
+        price: venue.price ? `${Number(venue.price).toFixed(2)} zł` : '??? zł',
         rating: venue.average_rating || 0,
         reviewCount: venue.review_count || 0,
         lat: venue.latitude,

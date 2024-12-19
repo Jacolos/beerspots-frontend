@@ -37,7 +37,7 @@ export const useGeolocation = () => {
     error: null,
     isLoading: !storedLocation,
     isDefault: !storedLocation,
-    source: storedLocation ? 'ip' : 'default'
+    source: storedLocation ? 'gps' : 'default'
   });
 
   useEffect(() => {
@@ -102,8 +102,58 @@ export const useGeolocation = () => {
       });
     };
 
+    // Nasłuchuj zmian w localStorage
+    const handleStorageChange = () => {
+      const newLocation = getStoredLocation();
+      if (newLocation) {
+        setState(prev => ({
+          ...prev,
+          latitude: newLocation.latitude,
+          longitude: newLocation.longitude,
+          isDefault: false,
+          source: 'gps',
+          error: null
+        }));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Sprawdzaj localStorage w interwałach
+    const checkStorage = setInterval(() => {
+      const newLocation = getStoredLocation();
+      if (newLocation && 
+          (newLocation.latitude !== state.latitude || 
+           newLocation.longitude !== state.longitude)) {
+        if (mounted) {
+          setState(prev => ({
+            ...prev,
+            latitude: newLocation.latitude,
+            longitude: newLocation.longitude,
+            isDefault: false,
+            source: 'gps',
+            error: null
+          }));
+        }
+      }
+    }, 1000);
+
     const initLocation = async () => {
-      if (!state.isDefault) return;
+      if (!mounted) return;
+      
+      // Jeśli mamy zapisaną lokalizację, użyj jej
+      const storedLoc = getStoredLocation();
+      if (storedLoc) {
+        setState({
+          latitude: storedLoc.latitude,
+          longitude: storedLoc.longitude,
+          error: null,
+          isLoading: false,
+          isDefault: false,
+          source: 'gps'
+        });
+        return;
+      }
 
       try {
         const gpsPosition = await getGPSLocation();
@@ -121,7 +171,7 @@ export const useGeolocation = () => {
             error: null,
             isLoading: false,
             isDefault: false,
-            source: 'gps',
+            source: 'gps'
           });
         }
       } catch (gpsError) {
@@ -156,8 +206,10 @@ export const useGeolocation = () => {
 
     return () => {
       mounted = false;
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(checkStorage);
     };
-  }, [state.isDefault]);
+  }, [state.latitude, state.longitude]);
 
   return state;
 };

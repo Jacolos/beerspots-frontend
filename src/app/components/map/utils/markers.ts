@@ -1,31 +1,22 @@
 // src/app/components/map/utils/markers.ts
-export const createPriceMarker = (price: string, isTemp = false) => {
-    const L = window.L;
-    return L.divIcon({
-      className: 'custom-marker',
-      html: `
-        <div style="
-          background-color: ${isTemp ? '#FCD34D' : '#D97706'};
-          color: white;
-          border-radius: 20px;
-          padding: 6px 12px;
-          font-weight: bold;
-          font-size: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-          border: 2px solid white;
-          white-space: nowrap;
-        ">
-          ${price}
-        </div>
-      `,
-      iconSize: [40, 20],
-      iconAnchor: [20, 10],
-      popupAnchor: [0, -10]
-    });
-  };
+export const createPriceMarker = (price: string | number, isNew = false) => {
+  const L = window.L;
+  
+  const html = isNew 
+    ? `<div class="custom-marker new-location-marker">
+         <span>📍</span>
+       </div>`
+    : `<div class="price-marker">
+         <span>${typeof price === 'number' ? price.toFixed(2) : price}</span>
+       </div>`;
+
+  return L.divIcon({
+    html: html,
+    className: isNew ? 'new-location-marker' : 'price-marker',
+    iconSize: [60, 30],
+    iconAnchor: [30, 30]
+  });
+};
   
   export const createUserLocationMarker = () => {
     const L = window.L;

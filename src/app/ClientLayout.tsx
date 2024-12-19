@@ -22,19 +22,22 @@ export default function ClientLayout({
 
   return (
     <>
+      {/* Leaflet core */}
       <Script
         src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossOrigin=""
         strategy="beforeInteractive"
       />
-      <Script
-        src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js"
-        strategy="beforeInteractive"
-      />
+      
+      {/* Plugins - load after Leaflet core */}
       <Script
         src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"
-        strategy="beforeInteractive"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js"
+        strategy="afterInteractive"
       />
 
       <Toaster
@@ -121,6 +124,90 @@ export default function ClientLayout({
 
         .locate-control.active {
           color: #2563EB;
+        }
+
+        .leaflet-marker-icon {
+          background: none;
+          border: none;
+        }
+
+        /* MarkerCluster custom styles */
+        .marker-cluster-small {
+          background-color: rgba(181, 226, 140, 0.6);
+        }
+        .marker-cluster-small div {
+          background-color: rgba(110, 204, 57, 0.6);
+        }
+
+        .marker-cluster-medium {
+          background-color: rgba(241, 211, 87, 0.6);
+        }
+        .marker-cluster-medium div {
+          background-color: rgba(240, 194, 12, 0.6);
+        }
+
+        .marker-cluster-large {
+          background-color: rgba(253, 156, 115, 0.6);
+        }
+        .marker-cluster-large div {
+          background-color: rgba(241, 128, 23, 0.6);
+        }
+
+        .marker-cluster {
+          background-clip: padding-box;
+          border-radius: 20px;
+        }
+        .marker-cluster div {
+          width: 30px;
+          height: 30px;
+          margin-left: 5px;
+          margin-top: 5px;
+          text-align: center;
+          border-radius: 15px;
+          font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+        }
+        .marker-cluster span {
+          line-height: 30px;
+        }
+
+        .new-location-marker {
+          background-color: #059669;
+          color: white;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 2px solid white;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+          font-weight: bold;
+        }
+
+        .new-location-marker span {
+          font-size: 20px;
+        }
+
+        .price-marker {
+          background-color: #D97706;
+          color: white;
+          padding: 4px 12px;
+          border-radius: 6px;
+          font-weight: bold;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+          border: 2px solid white;
+          white-space: nowrap;
+          min-width: 60px;
+          height: 30px;
+        }
+
+        .price-marker span {
+          display: block;
+          line-height: 1;
         }
       `}</style>
 

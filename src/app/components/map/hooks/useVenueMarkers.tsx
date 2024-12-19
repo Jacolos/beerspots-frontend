@@ -37,7 +37,7 @@ export const useVenueMarkers = ({
     const container = document.createElement('div');
     container.className = 'leaflet-popup-fixed';
     container.style.position = 'absolute';
-    container.style.zIndex = '10';
+    container.style.zIndex = '20';
     container.style.display = 'none';
     container.style.transform = 'translate(-50%, -100%)';
     document.body.appendChild(container);
@@ -55,10 +55,6 @@ export const useVenueMarkers = ({
         popupContainerRef.current.remove();
         popupContainerRef.current = null;
       }
-      if (tempMarkerRef.current) {
-        tempMarkerRef.current.remove();
-        tempMarkerRef.current = null;
-      }
     };
   }, []);
 
@@ -68,20 +64,7 @@ export const useVenueMarkers = ({
     
     const map = mapInstance.current;
 
-    // Inicjalizacja cluster group jeśli nie istnieje
-    if (!markerClusterGroupRef.current) {
-      const L = window.L;
-      markerClusterGroupRef.current = L.markerClusterGroup({
-        maxClusterRadius: 50,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: true,
-        zoomToBoundsOnClick: true,
-        disableClusteringAtZoom: 16,
-        chunkedLoading: true
-      });
-      map.addLayer(markerClusterGroupRef.current);
-    }
-
+    // Funkcja aktualizacji pozycji popupu
     const updatePopupPosition = () => {
       if (activeVenueRef.current && popupContainerRef.current && map) {
         const point = map.latLngToContainerPoint([
@@ -97,66 +80,94 @@ export const useVenueMarkers = ({
       }
     };
 
-    // Czyszczenie starych markerów
-    if (markerClusterGroupRef.current) {
-      markerClusterGroupRef.current.clearLayers();
+    // Inicjalizacja cluster group
+    if (!markerClusterGroupRef.current) {
+      const L = window.L;
+      markerClusterGroupRef.current = L.markerClusterGroup({
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        disableClusteringAtZoom: 15,
+        chunkedLoading: true,
+        removeOutsideVisibleBounds: true,
+        animate: true
+      });
+      map.addLayer(markerClusterGroupRef.current);
     }
-    markersRef.current = [];
 
-    // Dodawanie nowych markerów dla lokali
+    // Bezpieczne czyszczenie markerów
+    const clearMarkers = () => {
+      if (markerClusterGroupRef.current) {
+        markerClusterGroupRef.current.clearLayers();
+      }
+      markersRef.current.forEach(marker => {
+        if (marker) marker.remove();
+      });
+      markersRef.current = [];
+    };
+
+    // Czyszczenie starych markerów
+    clearMarkers();
+
+    // Dodawanie nowych markerów
     venues.forEach(venue => {
       if (!venue.lat || !venue.lng) return;
 
-      const marker = window.L.marker([venue.lat, venue.lng], {
-        icon: createPriceMarker(venue.price)
-      });
+      try {
+        const marker = window.L.marker([venue.lat, venue.lng], {
+          icon: createPriceMarker(venue.price)
+        });
 
-      marker.on('click', (e) => {
-        e.originalEvent.stopPropagation();
+        marker.on('click', (e) => {
+          e.originalEvent.stopPropagation();
+          
+          if (isUnmountedRef.current || !popupRootRef.current || !popupContainerRef.current) return;
         
-        if (isUnmountedRef.current || !popupRootRef.current || !popupContainerRef.current) return;
-      
-        if (activeVenueRef.current?.id !== venue.id) {
-          activeVenueRef.current = {
-            id: venue.id,
-            lat: venue.lat,
-            lng: venue.lng
-          };
-      
-          popupRootRef.current.render(
-            <VenuePopup
-              spotId={venue.id}
-              name={venue.name}
-              beer={venue.beer}
-              price={venue.price}
-              rating={venue.rating}
-              reviewCount={venue.reviewCount}
-              address={venue.address}
-              openingStatus="unknown"
-              latitude={venue.lat}
-              longitude={venue.lng}
-              mapInstance={mapInstance.current}  // dodaj to
-              onClose={() => {
-                if (popupContainerRef.current) {
-                  popupContainerRef.current.style.display = 'none';
-                }
-                activeVenueRef.current = null;
-              }}
-            />
-          );
-        }
-      
-        popupContainerRef.current.style.display = 'block';
-        updatePopupPosition();
-      });
+          if (activeVenueRef.current?.id !== venue.id) {
+            activeVenueRef.current = {
+              id: venue.id,
+              lat: venue.lat,
+              lng: venue.lng
+            };
+        
+            popupRootRef.current.render(
+              <VenuePopup
+                spotId={venue.id}
+                name={venue.name}
+                beer={venue.beer}
+                price={venue.price}
+                rating={venue.rating}
+                reviewCount={venue.reviewCount}
+                address={venue.address}
+                openingStatus="unknown"
+                latitude={venue.lat}
+                longitude={venue.lng}
+                mapInstance={mapInstance.current}
+                onClose={() => {
+                  if (popupContainerRef.current) {
+                    popupContainerRef.current.style.display = 'none';
+                  }
+                  activeVenueRef.current = null;
+                }}
+              />
+            );
+          }
+        
+          popupContainerRef.current.style.display = 'block';
+          updatePopupPosition();
+        });
 
-      markersRef.current.push(marker);
-      if (markerClusterGroupRef.current) {
-        markerClusterGroupRef.current.addLayer(marker);
+        markersRef.current.push(marker);
+        if (markerClusterGroupRef.current) {
+          markerClusterGroupRef.current.addLayer(marker);
+        }
+      } catch (error) {
+        console.error('Error creating marker:', error);
       }
     });
 
-    // Event handlers for map movement
+    // Event handlers
     const handleMapMove = () => {
       if (!isUnmountedRef.current) {
         requestAnimationFrame(updatePopupPosition);
@@ -177,6 +188,7 @@ export const useVenueMarkers = ({
       }
     };
 
+    // Dodawanie event listenerów
     map.on('move', handleMapMove);
     map.on('zoom', handleMapMove);
     map.on('moveend', handleMapMove);
@@ -184,16 +196,44 @@ export const useVenueMarkers = ({
     map.on('click', handleMapClick);
     window.addEventListener('resize', handleMapMove);
 
+    // Handler resetowania markerów
+    const handleReset = () => {
+      if (markersRef.current.length === 0 && venues.length > 0) {
+        clearMarkers();
+        venues.forEach(venue => {
+          try {
+            const marker = window.L.marker([venue.lat, venue.lng], {
+              icon: createPriceMarker(venue.price)
+            });
+            markersRef.current.push(marker);
+            if (markerClusterGroupRef.current) {
+              markerClusterGroupRef.current.addLayer(marker);
+            }
+          } catch (error) {
+            console.error('Error recreating marker:', error);
+          }
+        });
+      }
+    };
+
+    map.on('moveend', handleReset);
+    map.on('zoomend', handleReset);
+
+    // Cleanup
     return () => {
       map.off('move', handleMapMove);
       map.off('zoom', handleMapMove);
       map.off('moveend', handleMapMove);
       map.off('zoomend', handleMapMove);
       map.off('click', handleMapClick);
+      map.off('moveend', handleReset);
+      map.off('zoomend', handleReset);
       window.removeEventListener('resize', handleMapMove);
 
+      clearMarkers();
       if (markerClusterGroupRef.current) {
-        markerClusterGroupRef.current.clearLayers();
+        map.removeLayer(markerClusterGroupRef.current);
+        markerClusterGroupRef.current = null;
       }
     };
   }, [venues, mapReady, handleReviewsClick]);
